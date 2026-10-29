@@ -96,6 +96,8 @@
     position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%;
     border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: 18px; line-height: 28px; padding: 0;
   }
+  .edit-card { border: 1.5px solid var(--warn); padding: 12px 14px; }
+  .edit-card p { margin: 4px 0 6px; font-size: 14px; }
   .gate { text-align: center; padding: 28px 18px 20px; margin-top: 8vh; }
   .gate-icon { font-size: 52px; line-height: 1; }
   .gate h1 { margin: 12px 0 6px; }
@@ -115,10 +117,21 @@
 </div>
 
 <main id="form">
+<div class="card edit-card" id="editBanner" hidden>
+  <b>✏️ Режим исправления</b>
+  <p id="editBannerText"></p>
+  <button type="button" class="link" onclick="cancelEdit()">Отменить и вернуться к новому отчёту</button>
+</div>
+
 <header>
   <h1>Отчёт смены</h1>
   <div class="sub" id="lastInfo"></div>
 </header>
+
+<div class="card edit-card" id="editOffer" hidden>
+  <p id="editOfferText"></p>
+  <button type="button" class="btn btn-light" id="editStart">✏️ Исправить отправленный отчёт</button>
+</div>
 
 <section class="card">
   <h2>Смена</h2>
@@ -137,7 +150,7 @@
 
 <section class="card">
   <h2>Фото чека</h2>
-  <p class="note">Чек закрытия смены и чеки расходов. Можно несколько фото.</p>
+  <p class="note" id="photoNote">Чек закрытия смены и чеки расходов. Можно несколько фото.</p>
   <div class="photos" id="photos"></div>
   <label class="btn btn-light" id="addPhotoBtn">📷 Добавить фото
     <input type="file" id="photoInput" accept="image/*" multiple hidden>
@@ -414,6 +427,7 @@ function recalc() {
 let draftTimer;
 function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 400); }
 function saveDraft() {
+  if (editing) return;   // исправление не смешиваем с черновиком нового отчёта
   const d = {
     savedOn: todayISO(), id: reportId, fields: {}, stock: {},
     expenses: [...document.querySelectorAll('.exp')].map(r => ({
@@ -501,7 +515,10 @@ function clearDraft() { storage(ls => ls.removeItem(DRAFT_KEY)); }
 
 function showForm(on) {
   $('form').hidden = !on;
-  if (inTg && tg.MainButton) tg.MainButton.setParams({ text: 'Отправить отчёт', is_visible: on });
+  if (inTg && tg.MainButton) {
+    tg.MainButton.setParams({ text: editing ? 'Сохранить исправление' : 'Отправить отчёт', is_visible: on });
+  }
+  $('sendBtn').textContent = editing ? 'Сохранить исправление' : 'Отправить отчёт';
 }
 
 function gate(state, detail) {
@@ -550,7 +567,81 @@ async function init() {
   applyMyName(data.name);
   applyLast(data.last);
   applyLearned(data.orderItems);
+  offerEdit(data.editable);
 }
+
+/* ---------- исправление отправленного отчёта ---------- */
+
+let editing = null;   // { id, deadline, data } — пока исправляем отчёт
+
+function hhmm(iso) {
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function offerEdit(ed) {
+  const box = $('editOffer');
+  if (!ed || !ed.data) { box.hidden = true; return; }
+  $('editOfferText').textContent =
+    `Вы отправили отчёт за ${ddmm(ed.data.date)} в ${hhmm(ed.sentAt)}. Если в нём ошибка, его можно исправить до ${hhmm(ed.deadline)}.`;
+  box.hidden = false;
+  $('editStart').onclick = () => startEdit(ed);
+}
+
+function setSelectValue(sel, other, name) {
+  if (!name) { sel.value = ''; return; }
+  if (![...sel.options].some(o => o.value === name)) {
+    sel.add(new Option(name, name), sel.options[sel.options.length - 1]);
+  }
+  sel.value = name;
+  other.value = '';
+}
+
+function startEdit(ed) {
+  editing = ed;
+  const r = ed.data;
+  const put = (k, v) => { fields[k].value = v == null ? '' : String(v); };
+  put('date', r.date);
+  setSelectValue(fields.barista, fields.baristaOther, r.barista);
+  setSelectValue(fields.barista2, fields.baristaOther2, r.barista2);
+  put('shiftFrom', r.shiftFrom); put('shiftTo', r.shiftTo);
+  put('shiftFrom2', r.shiftFrom2 || SHIFT_FROM); put('shiftTo2', r.shiftTo2 || SHIFT_TO);
+  ['cash', 'card', 'incass', 'refundCash', 'refundCard', 'cashStart', 'cashEnd', 'reviews', 'baristaFeedback']
+    .forEach(k => put(k, r[k]));
+
+  $('expenses').textContent = '';
+  (r.expenses || []).forEach(e => addExpense(e.name, e.sum == null ? '' : e.sum));
+
+  const stock = {};
+  (r.stock || []).forEach(s => { stock[s.name] = s.value; });
+  stockEls.forEach(s => { s.el.value = stock[s.name] == null ? '' : stock[s.name]; s.hint.textContent = ''; });
+  $('cashStartHint').textContent = '';
+
+  const chipMap = {};
+  document.querySelectorAll('.chip').forEach(c => { chipMap[c.dataset.item.toLowerCase()] = c; c.setAttribute('aria-pressed', 'false'); });
+  const typed = [];
+  (r.order || []).forEach(item => {
+    const c = chipMap[String(item).toLowerCase()];
+    if (c) c.setAttribute('aria-pressed', 'true'); else typed.push(item);
+  });
+  put('orderText', typed.join('\n'));
+
+  photos.length = 0;
+  renderPhotos();
+  $('photoNote').textContent = 'Фото из первого отчёта сохранятся. Добавьте новые, только если нужно.';
+
+  $('editOffer').hidden = true;
+  $('editBanner').hidden = false;
+  $('editBannerText').textContent = `Исправление отчёта за ${ddmm(r.date)}. Сохранить можно до ${hhmm(ed.deadline)}.`;
+  $('lastInfo').textContent = '';
+  updateBaristaRows();
+  recalc();
+  showForm(true);
+  window.scrollTo(0, 0);
+}
+
+// Отмена: просто перезагружаем форму — черновик нового отчёта не тронут
+function cancelEdit() { location.reload(); }
 
 /* ---------- кнопки заявки ---------- */
 
@@ -658,7 +749,7 @@ async function submit() {
   if (r.card == null) missing.push('безнал');
   if (r.cashStart == null) missing.push('касса на начало');
   if (r.cashEnd == null) missing.push('касса на конец');
-  if (!photos.length) missing.push('фото чека');
+  if (!photos.length && !editing) missing.push('фото чека');
   if (r.barista2 && r.barista2 === r.barista) return alert_('Бариста 1 и Бариста 2 — один и тот же человек.');
   if (markBad()) return alert_('Где-то вписано не число — такие поля подсвечены красным.');
   if (missing.length) return alert_('Заполните: ' + missing.join(', ') + '.');
@@ -677,17 +768,20 @@ async function submit() {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ initData, report: r, photos }),
+      body: JSON.stringify({ initData, report: r, photos, editOf: editing ? editing.id : '' }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
-    clearDraft();
-    storage(ls => ls.setItem(BARISTA_KEY, fields.barista.value === '__other' ? '' : fields.barista.value));
-    reportId = newId();
+    if (data.unchanged) return alert_('Вы ничего не изменили — исправлять нечего.');
+    if (!editing) {
+      clearDraft();
+      storage(ls => ls.setItem(BARISTA_KEY, fields.barista.value === '__other' ? '' : fields.barista.value));
+      reportId = newId();
+    }
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     const msg = data.sent === false
-      ? 'Отчёт сохранён в таблицу, но сообщение в чат не ушло. Сообщите владельцу.'
-      : 'Отчёт отправлен ✅ Спасибо за смену!';
+      ? 'Сохранено в таблицу, но сообщение в чат не ушло. Сообщите владельцу.'
+      : editing ? 'Исправление сохранено ✅' : 'Отчёт отправлен ✅ Спасибо за смену!';
     await alert_(msg);
     if (tg) tg.close();
   } catch (e) {
