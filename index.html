@@ -86,6 +86,16 @@
     background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600;
   }
   .btn:disabled { opacity: .6; }
+  .btn-light { background: var(--field); color: var(--accent); text-align: center; margin: 8px 0 6px; cursor: pointer; }
+  .note { color: var(--hint); font-size: 14px; margin: 4px 0 8px; }
+  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photos:empty { display: none; }
+  .ph { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; background: var(--field); }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph button {
+    position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%;
+    border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: 18px; line-height: 28px; padding: 0;
+  }
   .gate { text-align: center; padding: 28px 18px 20px; margin-top: 8vh; }
   .gate-icon { font-size: 52px; line-height: 1; }
   .gate h1 { margin: 12px 0 6px; }
@@ -118,6 +128,20 @@
   <div class="row"><span>Время</span>
     <div class="pair"><input type="time" id="shiftFrom"> – <input type="time" id="shiftTo"></div>
   </div>
+  <label class="row"><span>Бариста 2<small>если на смене двое</small></span><select id="barista2"></select></label>
+  <input id="baristaOther2" class="full" placeholder="Фамилия и имя" hidden>
+  <div class="row" id="shift2Row" hidden><span>Время</span>
+    <div class="pair"><input type="time" id="shiftFrom2"> – <input type="time" id="shiftTo2"></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Фото чека</h2>
+  <p class="note">Чек закрытия смены и чеки расходов. Можно несколько фото.</p>
+  <div class="photos" id="photos"></div>
+  <label class="btn btn-light" id="addPhotoBtn">📷 Добавить фото
+    <input type="file" id="photoInput" accept="image/*" multiple hidden>
+  </label>
 </section>
 
 <section class="card">
@@ -180,7 +204,7 @@ const STOCK = [
     ['ПЭТ 350 мл', 'шт'], ['ПЭТ 500 мл', 'шт'],
   ]},
   { group: 'Продукты', items: [
-    ['Какао', 'шт'], ['Клубника', 'ящ'], ['Вишня', 'ящ'], ['Кофе 1 кг', 'шт'],
+    ['Какао', 'шт'], ['Клубника', 'ящ'], ['Вишня', 'ящ'], ['Кофе 1 кг', 'шт'], ['Кофе 250 г', 'шт'],
     ['Молоко', 'кор'], ['Кокосовое молоко', 'шт'], ['Миндальное молоко', 'шт'],
     ['Взб. сливки', 'шт'], ['Сливки 22%', 'шт'],
     ['Сок апельсиновый', 'шт'], ['Сок виноградный', 'шт'],
@@ -266,14 +290,20 @@ function moneyRow(parent, key, label, hintId) {
 }
 
 function build() {
-  const sel = $('barista');
-  sel.add(new Option('Выберите…', ''));
-  BARISTAS.forEach(n => sel.add(new Option(n, n)));
-  sel.add(new Option('Другой человек…', '__other'));
-  sel.addEventListener('change', () => { $('baristaOther').hidden = sel.value !== '__other'; });
+  const fillBaristas = (sel, first) => {
+    sel.add(new Option(first, ''));
+    BARISTAS.forEach(n => sel.add(new Option(n, n)));
+    sel.add(new Option('Другой человек…', '__other'));
+    sel.addEventListener('change', updateBaristaRows);
+  };
+  fillBaristas($('barista'), 'Выберите…');
+  fillBaristas($('barista2'), '— нет —');
 
-  ['date', 'barista', 'baristaOther', 'shiftFrom', 'shiftTo', 'reviews', 'orderText']
+  ['date', 'barista', 'baristaOther', 'shiftFrom', 'shiftTo',
+   'barista2', 'baristaOther2', 'shiftFrom2', 'shiftTo2', 'reviews', 'orderText']
     .forEach(k => { fields[k] = $(k); });
+
+  $('photoInput').addEventListener('change', e => { addPhotos(e.target.files); e.target.value = ''; });
 
   moneyRow($('moneyRows'), 'cash', 'Наличные');
   moneyRow($('moneyRows'), 'card', 'Безнал');
@@ -333,6 +363,7 @@ function addExpense(name = '', sum = '') {
 function collect() {
   const v = k => fields[k].value.trim();
   const barista = v('barista') === '__other' ? v('baristaOther') : v('barista');
+  const barista2 = v('barista2') === '__other' ? v('baristaOther2') : v('barista2');
   const expenses = [...document.querySelectorAll('.exp')].map(r => ({
     name: r.querySelector('.exp-name').value.trim(),
     sum: num(r.querySelector('.exp-sum').value),
@@ -343,6 +374,7 @@ function collect() {
   const r = {
     id: reportId,
     date: v('date'), barista, shiftFrom: v('shiftFrom'), shiftTo: v('shiftTo'),
+    barista2, shiftFrom2: barista2 ? v('shiftFrom2') : '', shiftTo2: barista2 ? v('shiftTo2') : '',
     reviews: v('reviews'),
     cash: num(v('cash')), card: num(v('card')), incass: num(v('incass')),
     refundCash: num(v('refundCash')), refundCard: num(v('refundCard')),
@@ -407,8 +439,62 @@ function restoreDraft() {
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
   const on = new Set(d.chips || []);
   document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', on.has(c.dataset.item) ? 'true' : 'false'));
-  $('baristaOther').hidden = fields.barista.value !== '__other';
+  updateBaristaRows();
   return true;
+}
+
+function updateBaristaRows() {
+  $('baristaOther').hidden = fields.barista.value !== '__other';
+  $('baristaOther2').hidden = fields.barista2.value !== '__other';
+  $('shift2Row').hidden = !fields.barista2.value;
+}
+
+/* ---------- фото чека ---------- */
+
+const MAX_PHOTOS = 6;
+const photos = [];   // уменьшенные JPEG в виде data:URL
+
+function shrinkImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 1600;
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Не удалось открыть фото')); };
+    img.src = url;
+  });
+}
+
+async function addPhotos(files) {
+  for (const f of [...files]) {
+    if (photos.length >= MAX_PHOTOS) { await alert_(`Можно не больше ${MAX_PHOTOS} фото.`); break; }
+    try { photos.push(await shrinkImage(f)); }
+    catch (e) { await alert_(e.message); }
+  }
+  renderPhotos();
+}
+
+function renderPhotos() {
+  const box = $('photos');
+  box.textContent = '';
+  photos.forEach((src, i) => {
+    const d = document.createElement('div'); d.className = 'ph';
+    const img = document.createElement('img'); img.src = src; img.alt = `Фото ${i + 1}`;
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+    x.setAttribute('aria-label', 'Удалить фото');
+    x.addEventListener('click', () => { photos.splice(i, 1); renderPhotos(); });
+    d.append(img, x);
+    box.appendChild(d);
+  });
+  $('addPhotoBtn').firstChild.textContent = photos.length ? '📷 Добавить ещё фото' : '📷 Добавить фото';
 }
 function clearDraft() { storage(ls => ls.removeItem(DRAFT_KEY)); }
 
@@ -538,6 +624,8 @@ async function submit() {
   if (r.card == null) missing.push('безнал');
   if (r.cashStart == null) missing.push('касса на начало');
   if (r.cashEnd == null) missing.push('касса на конец');
+  if (!photos.length) missing.push('фото чека');
+  if (r.barista2 && r.barista2 === r.barista) return alert_('Бариста 1 и Бариста 2 — один и тот же человек.');
   if (markBad()) return alert_('Где-то вписано не число — такие поля подсвечены красным.');
   if (missing.length) return alert_('Заполните: ' + missing.join(', ') + '.');
 
@@ -555,7 +643,7 @@ async function submit() {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ initData, report: r }),
+      body: JSON.stringify({ initData, report: r, photos }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
@@ -584,6 +672,8 @@ if (!fields.date.value) fields.date.value = todayISO();
 if (!restored) {
   fields.shiftFrom.value = SHIFT_FROM;
   fields.shiftTo.value = SHIFT_TO;
+  fields.shiftFrom2.value = SHIFT_FROM;
+  fields.shiftTo2.value = SHIFT_TO;
   const lastBarista = storage(ls => ls.getItem(BARISTA_KEY));
   if (lastBarista && BARISTAS.includes(lastBarista)) fields.barista.value = lastBarista;
   else if (BARISTAS.length === 1) fields.barista.value = BARISTAS[0];
