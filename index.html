@@ -203,7 +203,10 @@
 // Ссылка на веб-приложение Google Apps Script (заканчивается на /exec)
 const API_URL = 'https://script.google.com/macros/s/AKfycby7bnDlsYt-qDQA08GXiW71bvRMKbdfsysJWlesF_62p3wMcRwg-BALPGYMcRhhUL2o/exec';
 
-// Бариста — первая строка будет выбрана по умолчанию только если в списке один человек
+// ВАЖНО: бариста, товары и кнопки заявки теперь правятся в Google Таблице —
+// листы «Бариста», «Товары», «Кнопки заявки». Списки ниже — только запасные,
+// на случай если таблица недоступна при самом первом открытии формы.
+
 const BARISTAS = [
   'Николаева Доминика',
   'Туприна Туйаара',
@@ -307,15 +310,69 @@ function moneyRow(parent, key, label, hintId) {
   fields[key] = input;
 }
 
+/* ---------- списки из таблицы (с запасными значениями) ---------- */
+
+const CONFIG_KEY = 'shift-report-config';
+
+function defaultConfig() {
+  const stock = [];
+  STOCK.forEach(g => g.items.forEach(([name, unit]) => stock.push({ group: g.group, name, unit })));
+  return { stock, baristas: BARISTAS.slice() };
+}
+
+// Последний список, полученный из таблицы, — чтобы форма сразу открывалась правильной
+let config = storage(ls => JSON.parse(ls.getItem(CONFIG_KEY) || 'null')) || defaultConfig();
+
+function fillBaristas(sel, first, list) {
+  const keep = sel.value;
+  sel.textContent = '';
+  sel.add(new Option(first, ''));
+  list.forEach(n => sel.add(new Option(n, n)));
+  sel.add(new Option('Другой человек…', '__other'));
+  if (keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+  else if (keep && keep !== '__other') { sel.add(new Option(keep, keep), sel.options[sel.options.length - 1]); sel.value = keep; }
+}
+
+function renderStock(list) {
+  const old = {};
+  stockEls.forEach(s => { old[s.name] = { value: s.el.value, hint: s.hint.textContent }; });
+  stockEls.length = 0;
+  const box = $('stock');
+  box.textContent = '';
+  let group = null;
+  list.forEach(({ group: g, name, unit }) => {
+    if (g !== group) {
+      const h = document.createElement('h3'); h.textContent = g; box.appendChild(h);
+      group = g;
+    }
+    const row = document.createElement('label'); row.className = 'srow';
+    const span = document.createElement('span'); span.textContent = name;
+    const hint = document.createElement('small'); span.appendChild(hint);
+    const input = document.createElement('input');
+    input.inputMode = 'decimal'; input.autocomplete = 'off'; input.placeholder = '—';
+    const em = document.createElement('em'); em.textContent = unit || 'шт';
+    row.append(span, input, em);
+    box.appendChild(row);
+    if (old[name]) { input.value = old[name].value; hint.textContent = old[name].hint; }
+    stockEls.push({ group: g, name, unit: unit || 'шт', el: input, hint });
+  });
+}
+
+function applyConfig(cfg) {
+  if (!cfg || !Array.isArray(cfg.stock)) return;
+  config = { stock: cfg.stock, baristas: Array.isArray(cfg.baristas) ? cfg.baristas : config.baristas };
+  storage(ls => ls.setItem(CONFIG_KEY, JSON.stringify(config)));
+  renderStock(config.stock);
+  fillBaristas($('barista'), 'Выберите…', config.baristas);
+  fillBaristas($('barista2'), '— нет —', config.baristas);
+  updateBaristaRows();
+}
+
 function build() {
-  const fillBaristas = (sel, first) => {
-    sel.add(new Option(first, ''));
-    BARISTAS.forEach(n => sel.add(new Option(n, n)));
-    sel.add(new Option('Другой человек…', '__other'));
-    sel.addEventListener('change', updateBaristaRows);
-  };
-  fillBaristas($('barista'), 'Выберите…');
-  fillBaristas($('barista2'), '— нет —');
+  fillBaristas($('barista'), 'Выберите…', config.baristas);
+  fillBaristas($('barista2'), '— нет —', config.baristas);
+  $('barista').addEventListener('change', updateBaristaRows);
+  $('barista2').addEventListener('change', updateBaristaRows);
 
   ['date', 'barista', 'baristaOther', 'shiftFrom', 'shiftTo',
    'barista2', 'baristaOther2', 'shiftFrom2', 'shiftTo2', 'reviews', 'baristaFeedback', 'orderText']
@@ -332,25 +389,11 @@ function build() {
   moneyRow($('cashEndRow'), 'cashEnd', 'В кассе на конец смены', 'cashEndHint');
   $('cashEndHint').textContent = 'посчитайте наличные в кассе';
 
-  const stock = $('stock');
-  STOCK.forEach(g => {
-    const h = document.createElement('h3'); h.textContent = g.group; stock.appendChild(h);
-    g.items.forEach(([name, unit]) => {
-      const row = document.createElement('label'); row.className = 'srow';
-      const span = document.createElement('span'); span.textContent = name;
-      const hint = document.createElement('small'); span.appendChild(hint);
-      const input = document.createElement('input');
-      input.inputMode = 'decimal'; input.autocomplete = 'off'; input.placeholder = '—';
-      const em = document.createElement('em'); em.textContent = unit;
-      row.append(span, input, em);
-      stock.appendChild(row);
-      stockEls.push({ group: g.group, name, unit, el: input, hint });
-    });
-  });
+  renderStock(config.stock);
 
-  ORDER_ITEMS.forEach(addChip);
-  // Кнопки, которые бариста раньше вписывали вручную (из прошлого открытия формы)
-  (storage(ls => JSON.parse(ls.getItem(LEARNED_KEY) || '[]')) || []).forEach(addChip);
+  // Кнопки заявки: последний список из таблицы, а если его ещё нет — запасной
+  const cachedChips = storage(ls => JSON.parse(ls.getItem(LEARNED_KEY) || 'null'));
+  (Array.isArray(cachedChips) && cachedChips.length ? cachedChips : ORDER_ITEMS).forEach(addChip);
 
   $('addExpense').addEventListener('click', () => { addExpense(); saveDraftSoon(); });
 }
@@ -564,6 +607,7 @@ async function init() {
   if (data.access !== 'разрешён') return gate(data.access);
   $('gate').hidden = true;
   showForm(true);
+  applyConfig(data.config);
   applyMyName(data.name);
   applyLast(data.last);
   applyLearned(data.orderItems);
@@ -664,15 +708,13 @@ function addChip(item) {
   $('chips').appendChild(b);
 }
 
-// Список с сервера — главный: в нём и новые товары, и удалённые владельцем
+// Список с листа «Кнопки заявки» — главный: лишние кнопки убираем (кроме уже нажатых)
 function applyLearned(items) {
-  if (!Array.isArray(items)) return;
+  if (!Array.isArray(items) || !items.length) return;
   storage(ls => ls.setItem(LEARNED_KEY, JSON.stringify(items)));
-  const base = new Set(ORDER_ITEMS.map(s => s.toLowerCase()));
   const keep = new Set(items.map(s => String(s).toLowerCase()));
   document.querySelectorAll('.chip').forEach(c => {
-    const k = c.dataset.item.toLowerCase();
-    if (!base.has(k) && !keep.has(k) && c.getAttribute('aria-pressed') !== 'true') c.remove();
+    if (!keep.has(c.dataset.item.toLowerCase()) && c.getAttribute('aria-pressed') !== 'true') c.remove();
   });
   items.forEach(addChip);
 }
@@ -803,8 +845,8 @@ if (!restored) {
   fields.shiftFrom2.value = SHIFT_FROM;
   fields.shiftTo2.value = SHIFT_TO;
   const lastBarista = storage(ls => ls.getItem(BARISTA_KEY));
-  if (lastBarista && BARISTAS.includes(lastBarista)) fields.barista.value = lastBarista;
-  else if (BARISTAS.length === 1) fields.barista.value = BARISTAS[0];
+  if (lastBarista && config.baristas.includes(lastBarista)) fields.barista.value = lastBarista;
+  else if (config.baristas.length === 1) fields.barista.value = config.baristas[0];
 }
 
 document.addEventListener('input', () => { recalc(); saveDraftSoon(); });
