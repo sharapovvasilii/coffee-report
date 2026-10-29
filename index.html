@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Отчёт смены</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+    --card: var(--tg-theme-bg-color, #ffffff);
+    --text: var(--tg-theme-text-color, #1c1c1e);
+    --hint: var(--tg-theme-hint-color, #8e8e93);
+    --accent: var(--tg-theme-button-color, #2481cc);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --field: var(--tg-theme-secondary-bg-color, #f2f2f7);
+    --line: rgba(128, 128, 128, .18);
+    --ok: #2e9e5b;
+    --warn: #d9822b;
+    --err: #d64545;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 12px 12px 90px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header { padding: 4px 4px 10px; }
+  h1 { font-size: 22px; margin: 0; }
+  .sub { color: var(--hint); font-size: 13px; margin-top: 2px; }
+  .banner {
+    background: rgba(214, 69, 69, .12); color: var(--err);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 14px;
+  }
+  .card { background: var(--card); border-radius: 14px; padding: 6px 14px 10px; margin-bottom: 12px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 10px 0 4px; font-weight: 600; }
+  h3 { font-size: 14px; margin: 12px 0 2px; color: var(--hint); font-weight: 500; }
+  .row {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 46px; border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row > span { flex: 1; }
+  .row small, .srow small { display: block; color: var(--hint); font-size: 12px; }
+  .row em, .srow em { font-style: normal; color: var(--hint); width: 26px; font-size: 14px; }
+  input, select, textarea {
+    font: inherit; color: var(--text);
+    background: var(--field); border: 1px solid transparent; border-radius: 10px;
+    padding: 8px 10px; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input.num { width: 110px; text-align: right; }
+  input.bad { border-color: var(--err); }
+  select { max-width: 60%; }
+  textarea { width: 100%; min-height: 64px; resize: vertical; margin: 6px 0; }
+  .pair { display: flex; align-items: center; gap: 6px; }
+  .pair input { width: 92px; }
+  .full { width: 100%; margin: 4px 0 8px; }
+  .total { font-weight: 600; font-size: 17px; }
+  .status { font-size: 14px; padding: 10px 0 4px; color: var(--hint); }
+  .status.ok { color: var(--ok); }
+  .status.warn { color: var(--warn); font-weight: 500; }
+  .exp { display: flex; gap: 6px; margin: 6px 0; }
+  .exp .exp-name { flex: 1; min-width: 0; }
+  .exp .exp-sum { width: 90px; text-align: right; }
+  .x { background: none; border: 0; color: var(--hint); font-size: 22px; padding: 0 6px; }
+  .link { background: none; border: 0; color: var(--accent); font: inherit; padding: 8px 0; }
+  .grid { display: grid; grid-template-columns: 1fr; }
+  .srow {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 44px; border-bottom: 1px solid var(--line);
+  }
+  .srow > span { flex: 1; }
+  .srow input { width: 80px; text-align: right; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .chip {
+    font: inherit; font-size: 15px; border-radius: 18px; padding: 6px 12px;
+    border: 1px solid var(--line); background: var(--field); color: var(--text);
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn {
+    display: block; width: 100%; border: 0; border-radius: 12px; padding: 14px;
+    background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600;
+  }
+  .btn:disabled { opacity: .6; }
+  .gate { text-align: center; padding: 28px 18px 20px; margin-top: 8vh; }
+  .gate-icon { font-size: 52px; line-height: 1; }
+  .gate h1 { margin: 12px 0 6px; }
+  .gate p { color: var(--hint); margin: 0 0 16px; }
+  .gate input { text-align: center; }
+</style>
+</head>
+<body>
+<div id="banner" class="banner" hidden></div>
+
+<div id="gate" class="card gate" hidden>
+  <div class="gate-icon" id="gateIcon"></div>
+  <h1 id="gateTitle"></h1>
+  <p id="gateText"></p>
+  <input id="gateName" class="full" placeholder="Фамилия и имя" autocomplete="name" hidden>
+  <button id="gateBtn" class="btn" type="button" hidden></button>
+</div>
+
+<main id="form">
+<header>
+  <h1>Отчёт смены</h1>
+  <div class="sub" id="lastInfo"></div>
+</header>
+
+<section class="card">
+  <h2>Смена</h2>
+  <label class="row"><span>Дата</span><input type="date" id="date"></label>
+  <label class="row"><span>Бариста</span><select id="barista"></select></label>
+  <input id="baristaOther" class="full" placeholder="Фамилия и имя" hidden>
+  <div class="row"><span>Время</span>
+    <div class="pair"><input type="time" id="shiftFrom"> – <input type="time" id="shiftTo"></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Деньги</h2>
+  <div id="moneyRows"></div>
+  <div class="row"><span>Выручка</span><span class="total" id="revenue">—</span></div>
+</section>
+
+<section class="card">
+  <h2>Касса</h2>
+  <div id="cashRows"></div>
+  <h3>Расходы из кассы</h3>
+  <div id="expenses"></div>
+  <button type="button" class="link" id="addExpense">+ Добавить расход</button>
+  <div id="cashEndRow"></div>
+  <div class="status" id="cashStatus"></div>
+</section>
+
+<section class="card">
+  <h2>Товарный учёт</h2>
+  <div id="stock"></div>
+</section>
+
+<section class="card">
+  <h2>Заявка — что закончилось</h2>
+  <div class="chips" id="chips"></div>
+  <textarea id="orderText" placeholder="Что ещё нужно — каждое с новой строки"></textarea>
+</section>
+
+<section class="card">
+  <h2>Отзывы гостей</h2>
+  <textarea id="reviews" placeholder="Если были отзывы — напишите"></textarea>
+</section>
+
+<button id="sendBtn" class="btn" type="button" hidden>Отправить отчёт</button>
+</main>
+
+<script>
+/* ================= НАСТРОЙКИ ================= */
+
+// Ссылка на веб-приложение Google Apps Script (заканчивается на /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycby7bnDlsYt-qDQA08GXiW71bvRMKbdfsysJWlesF_62p3wMcRwg-BALPGYMcRhhUL2o/exec';
+
+// Бариста — первая строка будет выбрана по умолчанию только если в списке один человек
+const BARISTAS = [
+  'Николаева Доминика',
+  'Туприна Туйаара',
+  'Захарова Алина',
+  'Уоттаах Туйаара Ньургун',
+];
+
+// Время смены по умолчанию
+const SHIFT_FROM = '10:00';
+const SHIFT_TO = '21:00';
+
+// Товарный учёт: [название, единица]
+const STOCK = [
+  { group: 'Стаканы', items: [
+    ['420 мл', 'шт'], ['350 мл', 'шт'], ['250 мл', 'шт'],
+    ['ПЭТ 350 мл', 'шт'], ['ПЭТ 500 мл', 'шт'],
+  ]},
+  { group: 'Продукты', items: [
+    ['Какао', 'шт'], ['Клубника', 'ящ'], ['Вишня', 'ящ'], ['Кофе 1 кг', 'шт'],
+    ['Молоко', 'кор'], ['Кокосовое молоко', 'шт'], ['Миндальное молоко', 'шт'],
+    ['Взб. сливки', 'шт'], ['Сливки 22%', 'шт'],
+    ['Сок апельсиновый', 'шт'], ['Сок виноградный', 'шт'],
+    ['Рич персик', 'шт'], ['Рич зелёный', 'шт'], ['Рич манго', 'шт'], ['Рич малина', 'шт'],
+    ['Сок 0,25', 'шт'],
+  ]},
+];
+
+// Быстрые кнопки для заявки
+const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', 'Сливки', 'Стаканы', 'Крышки', 'Трубочки', 'Салфетки'];
+
+/* ============================================= */
+
+const tg = window.Telegram && window.Telegram.WebApp;
+const initData = tg ? tg.initData : '';
+const inTg = !!initData;
+const apiReady = !API_URL.startsWith('PASTE');
+const DRAFT_KEY = 'shift-report-draft-v1';
+const BARISTA_KEY = 'shift-report-barista';
+const $ = id => document.getElementById(id);
+
+let reportId = newId();
+let busy = false;
+const fields = {};
+const stockEls = [];
+
+function newId() {
+  return (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+function todayISO() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+function ddmm(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? `${m[3]}.${m[2]}` : (iso || '');
+}
+function num(v) {
+  v = String(v == null ? '' : v).replace(/\s/g, '').replace(',', '.');
+  if (v === '') return null;
+  const x = Number(v);
+  return isFinite(x) ? x : NaN;
+}
+function fmt(n) {
+  if (n == null || isNaN(n)) return '—';
+  const neg = n < 0;
+  const [i, f] = String(Math.abs(Math.round(n * 100) / 100)).split('.');
+  return (neg ? '−' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (f ? ',' + f : '');
+}
+function storage(fn) { try { return fn(window.localStorage); } catch (e) { return null; } }
+
+function showBanner(text) { const b = $('banner'); b.textContent = text; b.hidden = !text; }
+function alert_(msg) {
+  return new Promise(res => {
+    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) tg.showAlert(msg, res);
+    else { alert(msg); res(); }
+  });
+}
+function confirm_(msg) {
+  return new Promise(res => {
+    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) tg.showConfirm(msg, ok => res(!!ok));
+    else res(confirm(msg));
+  });
+}
+
+/* ---------- построение формы ---------- */
+
+function moneyRow(parent, key, label, hintId) {
+  const row = document.createElement('label');
+  row.className = 'row';
+  const span = document.createElement('span');
+  span.textContent = label;
+  if (hintId) { const s = document.createElement('small'); s.id = hintId; span.appendChild(s); }
+  const input = document.createElement('input');
+  input.className = 'num'; input.inputMode = 'decimal'; input.autocomplete = 'off';
+  input.placeholder = '0'; input.id = key;
+  const em = document.createElement('em'); em.textContent = '₽';
+  row.append(span, input, em);
+  parent.appendChild(row);
+  fields[key] = input;
+}
+
+function build() {
+  const sel = $('barista');
+  sel.add(new Option('Выберите…', ''));
+  BARISTAS.forEach(n => sel.add(new Option(n, n)));
+  sel.add(new Option('Другой человек…', '__other'));
+  sel.addEventListener('change', () => { $('baristaOther').hidden = sel.value !== '__other'; });
+
+  ['date', 'barista', 'baristaOther', 'shiftFrom', 'shiftTo', 'reviews', 'orderText']
+    .forEach(k => { fields[k] = $(k); });
+
+  moneyRow($('moneyRows'), 'cash', 'Наличные');
+  moneyRow($('moneyRows'), 'card', 'Безнал');
+  moneyRow($('moneyRows'), 'incass', 'Инкассация');
+  moneyRow($('moneyRows'), 'refundCash', 'Возврат наличными');
+  moneyRow($('moneyRows'), 'refundCard', 'Возврат по карте');
+  moneyRow($('cashRows'), 'cashStart', 'В кассе на начало смены', 'cashStartHint');
+  moneyRow($('cashEndRow'), 'cashEnd', 'В кассе на конец смены', 'cashEndHint');
+  $('cashEndHint').textContent = 'посчитайте наличные в кассе';
+
+  const stock = $('stock');
+  STOCK.forEach(g => {
+    const h = document.createElement('h3'); h.textContent = g.group; stock.appendChild(h);
+    g.items.forEach(([name, unit]) => {
+      const row = document.createElement('label'); row.className = 'srow';
+      const span = document.createElement('span'); span.textContent = name;
+      const hint = document.createElement('small'); span.appendChild(hint);
+      const input = document.createElement('input');
+      input.inputMode = 'decimal'; input.autocomplete = 'off'; input.placeholder = '—';
+      const em = document.createElement('em'); em.textContent = unit;
+      row.append(span, input, em);
+      stock.appendChild(row);
+      stockEls.push({ group: g.group, name, unit, el: input, hint });
+    });
+  });
+
+  const chips = $('chips');
+  ORDER_ITEMS.forEach(item => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = item; b.dataset.item = item;
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => {
+      b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+      saveDraftSoon();
+    });
+    chips.appendChild(b);
+  });
+
+  $('addExpense').addEventListener('click', () => { addExpense(); saveDraftSoon(); });
+}
+
+function addExpense(name = '', sum = '') {
+  const row = document.createElement('div'); row.className = 'exp';
+  const n = document.createElement('input'); n.className = 'exp-name'; n.placeholder = 'Что купили'; n.value = name;
+  const s = document.createElement('input'); s.className = 'exp-sum'; s.inputMode = 'decimal'; s.placeholder = '₽'; s.value = sum;
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×';
+  x.setAttribute('aria-label', 'Удалить расход');
+  x.addEventListener('click', () => { row.remove(); recalc(); saveDraftSoon(); });
+  row.append(n, s, x);
+  $('expenses').appendChild(row);
+  return n;
+}
+
+/* ---------- сбор и расчёты ---------- */
+
+function collect() {
+  const v = k => fields[k].value.trim();
+  const barista = v('barista') === '__other' ? v('baristaOther') : v('barista');
+  const expenses = [...document.querySelectorAll('.exp')].map(r => ({
+    name: r.querySelector('.exp-name').value.trim(),
+    sum: num(r.querySelector('.exp-sum').value),
+  })).filter(e => e.name || e.sum != null);
+  const order = [...document.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item)
+    .concat(v('orderText').split('\n').map(s => s.trim()).filter(Boolean));
+
+  const r = {
+    id: reportId,
+    date: v('date'), barista, shiftFrom: v('shiftFrom'), shiftTo: v('shiftTo'),
+    reviews: v('reviews'),
+    cash: num(v('cash')), card: num(v('card')), incass: num(v('incass')),
+    refundCash: num(v('refundCash')), refundCard: num(v('refundCard')),
+    cashStart: num(v('cashStart')), cashEnd: num(v('cashEnd')),
+    expenses,
+    stock: stockEls.map(s => ({ group: s.group, name: s.name, unit: s.unit, value: num(s.el.value) })),
+    order,
+  };
+  const z = x => (x == null || isNaN(x)) ? 0 : x;
+  r.revenue = z(r.cash) + z(r.card);
+  r.expensesTotal = expenses.reduce((a, e) => a + z(e.sum), 0);
+  r.cashExpected = z(r.cashStart) + z(r.cash) - r.expensesTotal - z(r.incass) - z(r.refundCash);
+  r.diff = (r.cashEnd == null || isNaN(r.cashEnd)) ? null : Math.round((r.cashEnd - r.cashExpected) * 100) / 100;
+  return r;
+}
+
+function recalc() {
+  const r = collect();
+  $('revenue').textContent = (r.cash == null && r.card == null) ? '—' : fmt(r.revenue) + ' ₽';
+  const st = $('cashStatus');
+  if (r.cashStart == null || r.cash == null) {
+    st.className = 'status';
+    st.textContent = 'Заполните кассу на начало и наличные — посчитаю, сколько должно остаться.';
+  } else if (r.diff == null) {
+    st.className = 'status';
+    st.textContent = `Должно остаться в кассе: ${fmt(r.cashExpected)} ₽`;
+  } else if (Math.abs(r.diff) < 0.005) {
+    st.className = 'status ok';
+    st.textContent = `✅ Касса сходится: ${fmt(r.cashExpected)} ₽`;
+  } else {
+    st.className = 'status warn';
+    st.textContent = `⚠️ Не сходится на ${r.diff > 0 ? '+' : ''}${fmt(r.diff)} ₽ (должно быть ${fmt(r.cashExpected)} ₽)`;
+  }
+}
+
+/* ---------- черновик ---------- */
+
+let draftTimer;
+function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 400); }
+function saveDraft() {
+  const d = {
+    savedOn: todayISO(), id: reportId, fields: {}, stock: {},
+    expenses: [...document.querySelectorAll('.exp')].map(r => ({
+      name: r.querySelector('.exp-name').value, sum: r.querySelector('.exp-sum').value })),
+    chips: [...document.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item),
+  };
+  for (const k in fields) d.fields[k] = fields[k].value;
+  stockEls.forEach(s => { d.stock[s.name] = s.el.value; });
+  storage(ls => ls.setItem(DRAFT_KEY, JSON.stringify(d)));
+}
+function restoreDraft() {
+  const raw = storage(ls => ls.getItem(DRAFT_KEY));
+  if (!raw) return false;
+  let d; try { d = JSON.parse(raw); } catch (e) { return false; }
+  if (d.id) reportId = d.id;
+  for (const k in d.fields || {}) {
+    if (!fields[k]) continue;
+    if (k === 'date' && d.savedOn !== todayISO()) continue;
+    fields[k].value = d.fields[k];
+  }
+  stockEls.forEach(s => { if (d.stock && d.stock[s.name] != null) s.el.value = d.stock[s.name]; });
+  (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
+  const on = new Set(d.chips || []);
+  document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', on.has(c.dataset.item) ? 'true' : 'false'));
+  $('baristaOther').hidden = fields.barista.value !== '__other';
+  return true;
+}
+function clearDraft() { storage(ls => ls.removeItem(DRAFT_KEY)); }
+
+/* ---------- доступ ---------- */
+
+function showForm(on) {
+  $('form').hidden = !on;
+  if (inTg && tg.MainButton) tg.MainButton.setParams({ text: 'Отправить отчёт', is_visible: on });
+}
+
+function gate(state, detail) {
+  showForm(false);
+  $('gate').hidden = false;
+  const name = $('gateName'), btn = $('gateBtn');
+  name.hidden = true; btn.hidden = true; btn.disabled = false;
+  const set = (icon, title, text) => {
+    $('gateIcon').textContent = icon; $('gateTitle').textContent = title; $('gateText').textContent = text;
+  };
+  const button = (label, fn) => { btn.hidden = false; btn.textContent = label; btn.onclick = fn; };
+
+  if (state === 'loading') {
+    set('☕', 'Проверяю доступ…', '');
+  } else if (state === 'none') {
+    set('🔐', 'Нужен доступ', 'Форма только для сотрудников кофейни. Напишите, как вас зовут, — владелец получит запрос и подтвердит.');
+    const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    if (u && !name.value) name.value = [u.last_name, u.first_name].filter(Boolean).join(' ');
+    name.hidden = false;
+    button('Запросить доступ', requestAccess);
+  } else if (state === 'ожидает') {
+    set('⏳', 'Запрос отправлен', 'Владелец получил запрос. Когда он подтвердит, бот пришлёт сообщение — тогда нажмите «Проверить».');
+    button('Проверить', init);
+  } else if (state === 'запрещён') {
+    set('⛔', 'Доступ закрыт', 'Если это ошибка — обратитесь к владельцу кофейни.');
+  } else {
+    set('⚠️', 'Не удалось подключиться', (detail || 'Нет связи.') + ' Проверьте интернет и попробуйте ещё раз.');
+    button('Повторить', init);
+  }
+}
+
+async function init() {
+  if (!inTg || !apiReady) return;
+  gate('loading');
+  let data;
+  try {
+    const res = await fetch(API_URL + '?action=init&initData=' + encodeURIComponent(initData));
+    data = await res.json();
+  } catch (e) {
+    return gate('error');
+  }
+  if (!data.ok) return gate('error', data.error);
+  if (data.access !== 'разрешён') return gate(data.access);
+  $('gate').hidden = true;
+  showForm(true);
+  applyMyName(data.name);
+  applyLast(data.last);
+}
+
+async function requestAccess() {
+  const name = $('gateName').value.trim();
+  if (name.length < 3) return alert_('Напишите фамилию и имя.');
+  $('gateBtn').disabled = true;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ initData, action: 'request', name }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    gate(data.access === 'none' ? 'ожидает' : data.access);
+  } catch (e) {
+    $('gateBtn').disabled = false;
+    alert_('Не получилось отправить запрос: ' + e.message);
+  }
+}
+
+// Подставляем имя, под которым владелец разрешил доступ
+function applyMyName(name) {
+  if (!name || fields.barista.value) return;
+  const sel = fields.barista;
+  if (![...sel.options].some(o => o.value === name)) {
+    sel.add(new Option(name, name), sel.options[sel.options.length - 1]);
+  }
+  sel.value = name;
+}
+
+/* ---------- данные прошлого отчёта ---------- */
+
+function applyLast(last) {
+  if (!last) return;
+  $('lastInfo').textContent = `Прошлый отчёт: ${ddmm(last.date)}, ${last.barista || ''}`;
+  if (last.cashEnd != null && last.cashEnd !== '') {
+    $('cashStartHint').textContent = `по прошлому отчёту: ${fmt(Number(last.cashEnd))} ₽`;
+    if (fields.cashStart.value === '') { fields.cashStart.value = last.cashEnd; recalc(); }
+  }
+  stockEls.forEach(s => {
+    const v = last.stock && last.stock[s.name];
+    if (v != null && v !== '') s.hint.textContent = `было ${v}`;
+  });
+}
+
+/* ---------- отправка ---------- */
+
+function markBad() {
+  let bad = false;
+  document.querySelectorAll('input.num, .srow input, .exp-sum').forEach(el => {
+    const isBad = el.value.trim() !== '' && isNaN(num(el.value));
+    el.classList.toggle('bad', isBad);
+    bad = bad || isBad;
+  });
+  return bad;
+}
+
+function setBusy(on) {
+  busy = on;
+  $('sendBtn').disabled = on;
+  if (tg && tg.MainButton) { on ? tg.MainButton.showProgress() : tg.MainButton.hideProgress(); }
+}
+
+async function submit() {
+  if (busy) return;
+  const r = collect();
+  const missing = [];
+  if (!r.date) missing.push('дата');
+  if (!r.barista) missing.push('бариста');
+  if (r.cash == null) missing.push('наличные');
+  if (r.card == null) missing.push('безнал');
+  if (r.cashStart == null) missing.push('касса на начало');
+  if (r.cashEnd == null) missing.push('касса на конец');
+  if (markBad()) return alert_('Где-то вписано не число — такие поля подсвечены красным.');
+  if (missing.length) return alert_('Заполните: ' + missing.join(', ') + '.');
+
+  const warnings = [];
+  const emptyStock = r.stock.filter(s => s.value == null).length;
+  if (emptyStock) warnings.push(`Не заполнено позиций товара: ${emptyStock}.`);
+  if (r.diff) warnings.push(`Касса не сходится на ${r.diff > 0 ? '+' : ''}${fmt(r.diff)} ₽.`);
+  if (warnings.length && !(await confirm_(warnings.join('\n') + '\nВсё равно отправить?'))) return;
+
+  if (!inTg) return alert_('Откройте форму через бота в Телеграме — иначе отчёт не отправится.');
+  if (!apiReady) return alert_('Форма ещё не подключена к таблице (не указан API_URL).');
+
+  setBusy(true);
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ initData, report: r }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    clearDraft();
+    storage(ls => ls.setItem(BARISTA_KEY, fields.barista.value === '__other' ? '' : fields.barista.value));
+    reportId = newId();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    const msg = data.sent === false
+      ? 'Отчёт сохранён в таблицу, но сообщение в чат не ушло. Сообщите владельцу.'
+      : 'Отчёт отправлен ✅ Спасибо за смену!';
+    await alert_(msg);
+    if (tg) tg.close();
+  } catch (e) {
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+    await alert_('Не получилось отправить: ' + e.message + '\n\nПроверьте интернет и нажмите ещё раз — введённое не потеряется.');
+  } finally {
+    setBusy(false);
+  }
+}
+
+/* ---------- запуск ---------- */
+
+build();
+const restored = restoreDraft();
+if (!fields.date.value) fields.date.value = todayISO();
+if (!restored) {
+  fields.shiftFrom.value = SHIFT_FROM;
+  fields.shiftTo.value = SHIFT_TO;
+  const lastBarista = storage(ls => ls.getItem(BARISTA_KEY));
+  if (lastBarista && BARISTAS.includes(lastBarista)) fields.barista.value = lastBarista;
+  else if (BARISTAS.length === 1) fields.barista.value = BARISTAS[0];
+}
+
+document.addEventListener('input', () => { recalc(); saveDraftSoon(); });
+document.addEventListener('change', () => { recalc(); saveDraftSoon(); });
+recalc();
+
+if (tg) {
+  tg.ready();
+  tg.expand();
+  if (tg.isVersionAtLeast && tg.isVersionAtLeast('6.1')) {
+    try { tg.setHeaderColor('secondary_bg_color'); tg.setBackgroundColor('secondary_bg_color'); } catch (e) {}
+  }
+}
+if (inTg && tg.MainButton) {
+  tg.MainButton.onClick(submit);
+} else {
+  $('sendBtn').hidden = false;
+  $('sendBtn').addEventListener('click', submit);
+  showBanner('Откройте эту форму через бота в Телеграме — иначе отчёт не отправится.');
+}
+
+// В Телеграме форма откроется только после проверки доступа
+if (inTg && apiReady) init();
+else showForm(true);
+</script>
+</body>
+</html>
