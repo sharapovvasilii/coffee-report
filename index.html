@@ -176,6 +176,11 @@
   <textarea id="reviews" placeholder="Если были отзывы — напишите"></textarea>
 </section>
 
+<section class="card">
+  <h2>Отзыв бариста</h2>
+  <textarea id="baristaFeedback" style="min-height: 120px" placeholder="Напишите здесь что угодно, например ваши пожелания: что хотели бы добавить, убрать, что починить, заменить, что можно сделать для улучшения"></textarea>
+</section>
+
 <button id="sendBtn" class="btn" type="button" hidden>Отправить отчёт</button>
 </main>
 
@@ -300,7 +305,7 @@ function build() {
   fillBaristas($('barista2'), '— нет —');
 
   ['date', 'barista', 'baristaOther', 'shiftFrom', 'shiftTo',
-   'barista2', 'baristaOther2', 'shiftFrom2', 'shiftTo2', 'reviews', 'orderText']
+   'barista2', 'baristaOther2', 'shiftFrom2', 'shiftTo2', 'reviews', 'baristaFeedback', 'orderText']
     .forEach(k => { fields[k] = $(k); });
 
   $('photoInput').addEventListener('change', e => { addPhotos(e.target.files); e.target.value = ''; });
@@ -330,18 +335,9 @@ function build() {
     });
   });
 
-  const chips = $('chips');
-  ORDER_ITEMS.forEach(item => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip'; b.textContent = item; b.dataset.item = item;
-    b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => {
-      b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
-      if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-      saveDraftSoon();
-    });
-    chips.appendChild(b);
-  });
+  ORDER_ITEMS.forEach(addChip);
+  // Кнопки, которые бариста раньше вписывали вручную (из прошлого открытия формы)
+  (storage(ls => JSON.parse(ls.getItem(LEARNED_KEY) || '[]')) || []).forEach(addChip);
 
   $('addExpense').addEventListener('click', () => { addExpense(); saveDraftSoon(); });
 }
@@ -368,14 +364,17 @@ function collect() {
     name: r.querySelector('.exp-name').value.trim(),
     sum: num(r.querySelector('.exp-sum').value),
   })).filter(e => e.name || e.sum != null);
+  const orderTyped = v('orderText').split('\n').map(s => s.trim()).filter(Boolean);
   const order = [...document.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item)
-    .concat(v('orderText').split('\n').map(s => s.trim()).filter(Boolean));
+    .concat(orderTyped);
 
   const r = {
     id: reportId,
     date: v('date'), barista, shiftFrom: v('shiftFrom'), shiftTo: v('shiftTo'),
     barista2, shiftFrom2: barista2 ? v('shiftFrom2') : '', shiftTo2: barista2 ? v('shiftTo2') : '',
     reviews: v('reviews'),
+    baristaFeedback: v('baristaFeedback'),
+    orderTyped,
     cash: num(v('cash')), card: num(v('card')), incass: num(v('incass')),
     refundCash: num(v('refundCash')), refundCard: num(v('refundCard')),
     cashStart: num(v('cashStart')), cashEnd: num(v('cashEnd')),
@@ -437,8 +436,8 @@ function restoreDraft() {
   }
   stockEls.forEach(s => { if (d.stock && d.stock[s.name] != null) s.el.value = d.stock[s.name]; });
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
-  const on = new Set(d.chips || []);
-  document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', on.has(c.dataset.item) ? 'true' : 'false'));
+  draftChips = new Set(d.chips || []);
+  document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
   updateBaristaRows();
   return true;
 }
@@ -550,6 +549,41 @@ async function init() {
   showForm(true);
   applyMyName(data.name);
   applyLast(data.last);
+  applyLearned(data.orderItems);
+}
+
+/* ---------- кнопки заявки ---------- */
+
+const LEARNED_KEY = 'shift-report-order-items';
+let draftChips = new Set();
+
+function addChip(item) {
+  item = String(item || '').trim();
+  if (!item) return;
+  const key = item.toLowerCase();
+  if ([...document.querySelectorAll('.chip')].some(c => c.dataset.item.toLowerCase() === key)) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chip'; b.textContent = item; b.dataset.item = item;
+  b.setAttribute('aria-pressed', draftChips.has(item) ? 'true' : 'false');
+  b.addEventListener('click', () => {
+    b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    saveDraftSoon();
+  });
+  $('chips').appendChild(b);
+}
+
+// Список с сервера — главный: в нём и новые товары, и удалённые владельцем
+function applyLearned(items) {
+  if (!Array.isArray(items)) return;
+  storage(ls => ls.setItem(LEARNED_KEY, JSON.stringify(items)));
+  const base = new Set(ORDER_ITEMS.map(s => s.toLowerCase()));
+  const keep = new Set(items.map(s => String(s).toLowerCase()));
+  document.querySelectorAll('.chip').forEach(c => {
+    const k = c.dataset.item.toLowerCase();
+    if (!base.has(k) && !keep.has(k) && c.getAttribute('aria-pressed') !== 'true') c.remove();
+  });
+  items.forEach(addChip);
 }
 
 async function requestAccess() {
