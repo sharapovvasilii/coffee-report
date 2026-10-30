@@ -188,6 +188,8 @@
 <section class="card">
   <h2>Отзывы гостей</h2>
   <textarea id="reviews" placeholder="Если были отзывы — напишите"></textarea>
+  <label class="row"><span>Отзывов в 2ГИС за смену<small>+100 ₽ каждому бариста на смене</small></span>
+    <input class="num" id="gis2" inputmode="numeric" autocomplete="off" placeholder="0"><em></em></label>
 </section>
 
 <section class="card">
@@ -376,7 +378,7 @@ function build() {
   $('barista2').addEventListener('change', updateBaristaRows);
 
   ['date', 'barista', 'baristaOther', 'shiftFrom', 'shiftTo',
-   'barista2', 'baristaOther2', 'shiftFrom2', 'shiftTo2', 'reviews', 'baristaFeedback', 'orderText']
+   'barista2', 'baristaOther2', 'shiftFrom2', 'shiftTo2', 'reviews', 'gis2', 'baristaFeedback', 'orderText']
     .forEach(k => { fields[k] = $(k); });
 
   $('photoInput').addEventListener('change', e => { addPhotos(e.target.files); e.target.value = ''; });
@@ -431,6 +433,7 @@ function collect() {
     barista2, shiftFrom2: barista2 ? v('shiftFrom2') : '', shiftTo2: barista2 ? v('shiftTo2') : '',
     reviews: v('reviews'),
     baristaFeedback: v('baristaFeedback'),
+    gis2: num(v('gis2')),
     orderTyped,
     cash: num(v('cash')), card: num(v('card')), incass: num(v('incass')),
     refundCash: num(v('refundCash')), refundCard: num(v('refundCard')),
@@ -653,6 +656,7 @@ function startEdit(ed) {
   put('shiftFrom2', r.shiftFrom2 || SHIFT_FROM); put('shiftTo2', r.shiftTo2 || SHIFT_TO);
   ['cash', 'card', 'incass', 'refundCash', 'refundCard', 'cashStart', 'cashEnd', 'reviews', 'baristaFeedback']
     .forEach(k => put(k, r[k]));
+  put('gis2', r.gis2 ? r.gis2 : '');
 
   $('expenses').textContent = '';
   (r.expenses || []).forEach(e => addExpense(e.name, e.sum == null ? '' : e.sum));
@@ -769,7 +773,11 @@ function applyLast(last) {
 function markBad() {
   let bad = false;
   document.querySelectorAll('input.num, .srow input, .exp-sum').forEach(el => {
-    const isBad = el.value.trim() !== '' && isNaN(num(el.value));
+    let isBad = el.value.trim() !== '' && isNaN(num(el.value));
+    if (el.id === 'gis2' && !isBad && el.value.trim() !== '') {
+      const n = num(el.value);
+      isBad = n < 0 || n > 50 || Math.floor(n) !== n;   // целое число отзывов
+    }
     el.classList.toggle('bad', isBad);
     bad = bad || isBad;
   });
