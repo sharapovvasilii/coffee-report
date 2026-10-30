@@ -101,6 +101,10 @@
   .edit-card p { margin: 4px 0 6px; font-size: 14px; }
   .gate { text-align: center; padding: 28px 18px 20px; margin-top: 8vh; }
   .gate-icon { font-size: 52px; line-height: 1; }
+  .gate-logo { width: 100%; max-width: 280px; max-height: 120px; object-fit: contain; }
+  .gate.loading .gate-icon { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.96); } }
+  @media (prefers-reduced-motion: reduce) { .gate.loading .gate-icon { animation: none; } }
   .gate h1 { margin: 12px 0 6px; }
   .gate p { color: var(--hint); margin: 0 0 16px; }
   .gate input { text-align: center; }
@@ -216,6 +220,10 @@ const BARISTAS = [
   'Захарова Алина',
   'Уоттаах Туйаара Ньургун',
 ];
+
+// Логотип на экране загрузки: файл logo.png рядом с index.html на GitHub.
+// Если файла нет — будет эмодзи ☕. Чтобы убрать логотип совсем: const LOGO = '';
+const LOGO = 'logo.png';
 
 // Время смены по умолчанию
 const SHIFT_FROM = '10:00';
@@ -573,13 +581,24 @@ function gate(state, detail) {
   $('gate').hidden = false;
   const name = $('gateName'), btn = $('gateBtn');
   name.hidden = true; btn.hidden = true; btn.disabled = false;
-  const set = (icon, title, text) => {
-    $('gateIcon').textContent = icon; $('gateTitle').textContent = title; $('gateText').textContent = text;
+  const set = (icon, title, text, withLogo) => {
+    const box = $('gateIcon');
+    box.textContent = '';
+    if (withLogo && LOGO) {
+      const img = new Image();
+      img.className = 'gate-logo'; img.alt = ''; img.src = LOGO;
+      img.onerror = () => { box.textContent = icon; };   // нет файла логотипа — показываем эмодзи
+      box.appendChild(img);
+    } else {
+      box.textContent = icon;
+    }
+    $('gateTitle').textContent = title; $('gateText').textContent = text;
   };
+  $('gate').classList.toggle('loading', state === 'loading');
   const button = (label, fn) => { btn.hidden = false; btn.textContent = label; btn.onclick = fn; };
 
   if (state === 'loading') {
-    set('☕', 'Проверяю доступ…', '');
+    set('☕', 'Загружаю форму…', 'Это займёт пару секунд', true);
   } else if (state === 'none') {
     set('🔐', 'Нужен доступ', 'Форма только для сотрудников кофейни. Напишите, как вас зовут, — владелец получит запрос и подтвердит.');
     const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
