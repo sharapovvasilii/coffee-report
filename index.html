@@ -128,6 +128,21 @@
   .edit-card { border: 1.5px solid var(--accent); padding: 12px; }
   .edit-card p { margin: 4px 0 6px; font-size: 14px; }
 
+  /* Экран закупщика */
+  .sec-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .sec-row .link { font-size: 14px; }
+  .plist { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+  .pitem {
+    font: inherit; font-size: 16px; font-weight: 500; border: 0; border-radius: 10px;
+    padding: 11px 14px; background: var(--chip); color: #fff; text-align: left;
+  }
+  .pitem.done { background: var(--field); color: var(--hint); text-decoration: line-through; font-weight: 400; }
+  .note { color: var(--hint); font-size: 14px; margin: 6px 0; }
+  .add-row { display: flex; gap: 8px; padding: 8px; }
+  .add-row input { flex: 1; min-width: 0; }
+  .btn-small { width: auto; padding: 9px 16px; font-size: 15px; }
+  .refresh { display: block; margin: 6px auto 0; }
+
   /* Экраны загрузки и доступа — большая белая карточка на весь экран */
   .gate {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -249,6 +264,36 @@
 </div>
 
 <button id="sendBtn" class="btn" type="button" hidden>Отправить отчёт</button>
+</main>
+
+<!-- Экран закупщика -->
+<main id="buyer" hidden>
+  <header>
+    <h1>Список закупки</h1>
+    <div class="sub" id="buyerInfo"></div>
+  </header>
+
+  <div id="boughtBlock" hidden>
+    <div class="sec-row">
+      <h2 class="sec">Куплено</h2>
+      <button type="button" class="link" id="clearBought">Очистить</button>
+    </div>
+    <div class="card"><div class="plist" id="boughtList"></div></div>
+  </div>
+
+  <h2 class="sec">Нужно купить</h2>
+  <div class="card">
+    <div class="plist" id="needList"></div>
+    <p class="note" id="needEmpty" hidden>Всё куплено 🎉</p>
+  </div>
+
+  <h2 class="sec">Добавить товар</h2>
+  <div class="card add-row">
+    <input id="newItem" placeholder="Название товара" autocomplete="off" maxlength="60">
+    <button type="button" class="btn btn-small" id="addItem">Добавить</button>
+  </div>
+
+  <button type="button" class="link refresh" id="refreshList">↻ Обновить список</button>
 </main>
 
 <script>
@@ -703,6 +748,7 @@ async function init() {
   }
   if (!data.ok) return gate('error', data.error);
   if (data.access !== 'разрешён') return gate(data.access);
+  if (data.role === 'buyer') return showBuyer(data.purchase);
   $('gate').hidden = true;
   showForm(true);
   applyConfig(data.config);
@@ -711,6 +757,123 @@ async function init() {
   applyLearned(data.orderItems);
   offerEdit(data.editable);
 }
+
+/* ---------- список закупки (для закупщика) ---------- */
+
+let purchase = [];
+let purchaseBusy = 0;
+
+function showBuyer(items) {
+  showForm(false);
+  $('gate').hidden = true;
+  $('buyer').hidden = false;
+  purchase = items || [];
+  renderPurchase();
+}
+
+function renderPurchase() {
+  const bought = purchase.filter(x => x.bought);
+  const need = purchase.filter(x => !x.bought);
+  const make = (x) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pitem' + (x.bought ? ' done' : '');
+    b.textContent = x.name;
+    if (x.source) b.title = x.source;
+    b.addEventListener('click', () => {
+      if (x.id === 'new') return;   // ещё сохраняется — подождём ответа сервера
+      x.bought ? askReturn(x) : markBought(x);
+    });
+    return b;
+  };
+  $('boughtList').replaceChildren(...bought.map(make));
+  $('needList').replaceChildren(...need.map(make));
+  $('boughtBlock').hidden = !bought.length;
+  $('needEmpty').hidden = need.length > 0;
+  $('buyerInfo').textContent = need.length
+    ? `Нужно купить: ${need.length} ${need.length % 10 === 1 && need.length % 100 !== 11 ? 'позиция'
+      : [2, 3, 4].includes(need.length % 10) && ![12, 13, 14].includes(need.length % 100) ? 'позиции' : 'позиций'}`
+    : 'Сейчас ничего не нужно';
+}
+
+// Отправляем действие на сервер; если не вышло — возвращаем список как был
+async function purchaseOp(body, rollback) {
+  purchaseBusy++;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ initData, action: 'purchase' }, body)),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (purchaseBusy === 1) { purchase = data.items; renderPurchase(); }
+  } catch (e) {
+    if (rollback) { rollback(); renderPurchase(); }
+    alert_('Не получилось сохранить: ' + e.message + '\nПроверьте интернет и попробуйте ещё раз.');
+  } finally {
+    purchaseBusy--;
+  }
+}
+
+function moveItem(x, bought) {
+  purchase = purchase.filter(i => i !== x);
+  x.bought = bought;
+  if (bought) purchase.unshift(x);    // купленное — наверх
+  else purchase.push(x);              // вернули — в конец списка «нужно»
+}
+
+function markBought(x) {
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  const before = purchase.slice();
+  moveItem(x, true);
+  renderPurchase();
+  purchaseOp({ op: 'bought', id: x.id }, () => { x.bought = false; purchase = before; });
+}
+
+async function askReturn(x) {
+  if (!(await confirm_(`Вернуть «${x.name}» в список «Нужно купить»?`))) return;
+  const before = purchase.slice();
+  moveItem(x, false);
+  renderPurchase();
+  purchaseOp({ op: 'need', id: x.id }, () => { x.bought = true; purchase = before; });
+}
+
+function addItem() {
+  const input = $('newItem');
+  const name = input.value.trim();
+  if (name.length < 2) return alert_('Напишите название товара.');
+  const same = purchase.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if (same && !same.bought) { input.value = ''; return alert_(`«${same.name}» уже есть в списке.`); }
+  const before = purchase.slice();
+  if (same) moveItem(same, false);
+  else purchase.push({ id: 'new', name, bought: false });
+  input.value = '';
+  renderPurchase();
+  purchaseOp({ op: 'add', name }, () => { if (same) same.bought = true; purchase = before; });
+}
+
+async function clearBought() {
+  if (!(await confirm_('Убрать все купленные товары из списка?'))) return;
+  const before = purchase.slice();
+  purchase = purchase.filter(x => !x.bought);
+  renderPurchase();
+  purchaseOp({ op: 'clear' }, () => { purchase = before; });
+}
+
+async function refreshPurchase() {
+  if (purchaseBusy) return;
+  purchaseOp({ op: 'list' });
+}
+
+$('addItem').addEventListener('click', addItem);
+$('newItem').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } });
+$('clearBought').addEventListener('click', clearBought);
+$('refreshList').addEventListener('click', refreshPurchase);
+// Вернулся в приложение — обновим список (вдруг бариста добавили заявку)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !$('buyer').hidden) refreshPurchase();
+});
 
 /* ---------- исправление отправленного отчёта ---------- */
 
