@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Перетаскивание товаров между отделами (если не загрузится — список всё равно работает) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <style>
   /* Фирменный стиль: всегда светлая тема, оранжевый акцент */
   :root {
@@ -143,6 +145,60 @@
   .btn-small { width: auto; padding: 9px 16px; font-size: 15px; }
   .refresh { display: block; margin: 6px auto 0; }
 
+  /* Вкладки: число столбцов задаётся из кода */
+  .tabs { margin-bottom: 4px; }
+  .tabs .seg-btn { padding: 11px 4px; font-size: 14px; }
+  .today-note { margin: 2px 0 8px; color: var(--warn); font-size: 13px; }
+
+  /* Отделы списка закупки */
+  .drag-hint { font-size: 12px; margin: -4px 2px 8px; }
+  .psec { background: var(--card); border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
+  .psec.empty { display: none; }
+  #sections.dragging .psec.empty, #sections.editing .psec.empty { display: block; }
+  .psec-head { display: flex; align-items: center; gap: 6px; min-height: 28px; }
+  .psec-title { flex: 1; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+  .psec-count { font-size: 12px; color: var(--hint); }
+  .psec-tools { display: none; gap: 4px; }
+  #sections.editing .psec-tools { display: flex; }
+  #sections.editing .psec-count { display: none; }
+  .tool {
+    font: inherit; font-size: 15px; width: 32px; height: 30px; border: 0; border-radius: 8px;
+    background: var(--field); color: #444; padding: 0;
+  }
+  .tool:disabled { opacity: .3; }
+  .psec-rename { flex: 1; font-size: 14px; font-weight: 700; padding: 5px 8px; }
+  .psec .plist { min-height: 44px; }
+  .drag-ghost { opacity: .35; }
+  .drag-chosen { box-shadow: 0 6px 18px rgba(0, 0, 0, .18); transform: scale(1.04); }
+
+  /* Товарный учёт у закупщика */
+  #stockView .srow { min-height: 38px; }
+  .sval { min-width: 44px; text-align: right; font-weight: 600; }
+  .srow.low span, .srow.low .sval { color: var(--warn); }
+  .add-tool { color: var(--accent); font-size: 20px; font-weight: 500; }
+
+  /* Выручка */
+  .presets { margin: 4px 0 10px; }
+  .presets .chip { background: var(--card); color: var(--text); }
+  .presets .chip[aria-pressed="true"] { background: var(--dark); color: #fff; }
+  .rev-show { margin: 6px 0 4px auto; }
+  .big { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 2px 0; }
+  .cmp { font-size: 13px; font-weight: 600; }
+  .cmp.up { color: var(--ok); }
+  .cmp.down { color: var(--err); }
+  .kv { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; }
+  .kv b { font-weight: 600; }
+  .kv small { display: block; color: var(--hint); font-size: 11px; }
+  .bad-row { color: var(--warn); }
+  .bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; margin: 6px 0 2px; }
+  .bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; opacity: .85; }
+  .bar.zero { background: var(--field); }
+  .bars-axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--hint); }
+  .day { border-top: 1px solid #f0f0ef; }
+  .day:first-child { border-top: 0; }
+  .day-detail { font-size: 13px; color: #555; padding: 0 0 8px; }
+  .loading-note { text-align: center; color: var(--hint); padding: 30px 0; }
+
   /* Экраны загрузки и доступа — большая белая карточка на весь экран */
   .gate {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -172,9 +228,11 @@
 </div>
 
 <!-- Переключатель только для владельца -->
-<div class="card seg" id="ownerTabs" hidden>
-  <button type="button" class="seg-btn" id="tabReport" aria-pressed="true">Отчёт</button>
-  <button type="button" class="seg-btn" id="tabBuy" aria-pressed="false">Закупка</button>
+<div class="card seg tabs" id="tabs" hidden>
+  <button type="button" class="seg-btn" data-tab="report" hidden>Отчёт</button>
+  <button type="button" class="seg-btn" data-tab="order" hidden>Заявка</button>
+  <button type="button" class="seg-btn" data-tab="buy" hidden>Закупка</button>
+  <button type="button" class="seg-btn" data-tab="rev" hidden>Выручка</button>
 </div>
 
 <main id="form">
@@ -251,6 +309,7 @@
 
 <h2 class="sec">Заявка - что закончилось</h2>
 <div class="card">
+  <p class="note today-note" id="orderedTodayNote" hidden></p>
   <div class="chips" id="chips"></div>
   <textarea id="orderText" placeholder="Что еще нужно - каждое с новой строки"></textarea>
 </div>
@@ -287,10 +346,17 @@
     <div class="card"><div class="plist" id="boughtList"></div></div>
   </div>
 
-  <h2 class="sec">Нужно купить</h2>
-  <div class="card">
-    <div class="plist" id="needList"></div>
-    <p class="note" id="needEmpty" hidden>Всё куплено. Отличная работа!</p>
+  <div class="sec-row">
+    <h2 class="sec">Нужно купить</h2>
+    <button type="button" class="link" id="editSections">Изменить отделы</button>
+  </div>
+  <p class="note drag-hint" id="dragHint">Зажмите товар, чтобы перетащить его в другой отдел или выше-ниже</p>
+  <div class="card" id="needEmpty" hidden><p class="note">Всё куплено. Отличная работа!</p></div>
+  <div id="sections"></div>
+
+  <div class="card add-row" id="addSectionRow" hidden>
+    <input id="newSection" placeholder="Новый отдел, например «Метро»" autocomplete="off" maxlength="40">
+    <button type="button" class="btn btn-small" id="addSection">Добавить</button>
   </div>
 
   <h2 class="sec">Добавить товар</h2>
@@ -299,7 +365,43 @@
     <button type="button" class="btn btn-small" id="addItem">Добавить</button>
   </div>
 
+  <div id="stockBlock" hidden>
+    <h2 class="sec">Товарный учёт</h2>
+    <p class="note drag-hint" id="stockInfo"></p>
+    <div class="card" id="stockView"></div>
+  </div>
+
   <button type="button" class="link refresh" id="refreshList">↻ Обновить список</button>
+</main>
+
+<!-- Срочная заявка (бариста и владелец) -->
+<main id="orderScreen" hidden>
+  <header>
+    <h1>Заявка</h1>
+    <div class="sub">Сразу попадёт в список закупки, не дожидаясь отчёта</div>
+  </header>
+  <h2 class="sec">Что нужно</h2>
+  <div class="card">
+    <p class="note today-note" id="orderedTodayNote2" hidden></p>
+    <div class="chips" id="orderChips"></div>
+    <textarea id="orderNow" placeholder="Что еще нужно - каждое с новой строки"></textarea>
+  </div>
+  <button id="sendOrderBtn" class="btn" type="button" hidden>Отправить заявку</button>
+</main>
+
+<!-- Выручка (только владелец) -->
+<main id="revScreen" hidden>
+  <header>
+    <h1>Выручка</h1>
+    <div class="sub" id="revRange"></div>
+  </header>
+  <div class="chips presets" id="revPresets"></div>
+  <div class="card" id="revCustom" hidden>
+    <label class="row"><span>С</span><input type="date" id="revFrom"></label>
+    <label class="row"><span>По</span><input type="date" id="revTo"></label>
+    <button type="button" class="btn btn-small rev-show" id="revShow">Показать</button>
+  </div>
+  <div id="revBody"></div>
 </main>
 
 <script>
@@ -531,7 +633,7 @@ function collect() {
     sum: num(r.querySelector('.exp-sum').value),
   })).filter(e => e.name || e.sum != null);
   const orderTyped = v('orderText').split('\n').map(s => s.trim()).filter(Boolean);
-  const order = [...document.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item)
+  const order = [...document.querySelectorAll('#chips .chip[aria-pressed="true"]')].map(c => c.dataset.item)
     .concat(orderTyped);
 
   const r = {
@@ -586,7 +688,7 @@ function saveDraft() {
     savedOn: todayISO(), id: reportId, fields: {}, stock: {},
     expenses: [...document.querySelectorAll('.exp')].map(r => ({
       name: r.querySelector('.exp-name').value, sum: r.querySelector('.exp-sum').value })),
-    chips: [...document.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item),
+    chips: [...document.querySelectorAll('#chips .chip[aria-pressed="true"]')].map(c => c.dataset.item),
     pairMode,
   };
   for (const k in fields) d.fields[k] = fields[k].value;
@@ -606,7 +708,7 @@ function restoreDraft() {
   stockEls.forEach(s => { if (d.stock && d.stock[s.name] != null) s.el.value = d.stock[s.name]; });
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
   draftChips = new Set(d.chips || []);
-  document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
+  document.querySelectorAll('#chips .chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
   pairMode = typeof d.pairMode === 'boolean' ? d.pairMode : !!fields.barista2.value;
   updateBaristaRows();
   return true;
@@ -691,12 +793,32 @@ function clearDraft() { storage(ls => ls.removeItem(DRAFT_KEY)); }
 
 /* ---------- доступ ---------- */
 
-function showForm(on) {
-  $('form').hidden = !on;
+// Какой экран сейчас открыт: 'form' (отчёт), 'order' (заявка), 'buyer' (закупка), 'revenue' или null
+let screen = null;
+
+function showScreen(name) {
+  screen = name;
+  $('form').hidden = name !== 'form';
+  $('orderScreen').hidden = name !== 'order';
+  $('buyer').hidden = name !== 'buyer';
+  $('revScreen').hidden = name !== 'revenue';
+  updateMainButton();
+  // В списке закупки товары перетаскивают пальцем — отключаем «смахнуть вниз, чтобы закрыть»
+  try {
+    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('7.7')) {
+      name === 'buyer' ? tg.disableVerticalSwipes() : tg.enableVerticalSwipes();
+    }
+  } catch (e) {}
+}
+
+function showForm(on) { showScreen(on ? 'form' : null); }
+
+function updateMainButton() {
+  const text = screen === 'form' ? (editing ? 'Сохранить исправление' : 'Отправить отчёт')
+    : screen === 'order' ? 'Отправить заявку' : '';
   if (inTg && tg.MainButton) {
     tg.MainButton.setParams({
-      text: editing ? 'Сохранить исправление' : 'Отправить отчёт', is_visible: on,
-      color: '#f25c26', text_color: '#ffffff',
+      text: text || 'Отправить', is_visible: !!text, color: '#f25c26', text_color: '#ffffff',
     });
   }
   $('sendBtn').textContent = editing ? 'Сохранить исправление' : 'Отправить отчёт';
@@ -754,7 +876,7 @@ async function init() {
   }
   if (!data.ok) return gate('error', data.error);
   if (data.access !== 'разрешён') return gate(data.access);
-  if (data.role === 'buyer') return showBuyer(data.purchase);
+  if (data.role === 'buyer') return showBuyer(data.purchase, data.sections, data.stock);
   $('gate').hidden = true;
   showForm(true);
   applyConfig(data.config);
@@ -762,66 +884,255 @@ async function init() {
   applyLast(data.last);
   applyLearned(data.orderItems);
   offerEdit(data.editable);
+  setOrderedToday(data.orderedToday);
   if (data.role === 'owner') {
     purchase = data.purchase || [];
+    sections = data.sections || [];
     renderPurchase();
-    $('ownerTabs').hidden = false;
+    renderStockView(data.stock);
+  }
+  setupTabs(data.role);
+}
+
+/* ---------- вкладки: бариста — Отчёт/Заявка, владелец — ещё Закупка и Выручка ---------- */
+
+const TAB_SCREENS = { report: 'form', order: 'order', buy: 'buyer', rev: 'revenue' };
+
+function setupTabs(role) {
+  const show = role === 'owner' ? ['report', 'order', 'buy', 'rev'] : ['report', 'order'];
+  const bar = $('tabs');
+  bar.querySelectorAll('.seg-btn').forEach(b => {
+    b.hidden = !show.includes(b.dataset.tab);
+    b.onclick = () => setTab(b.dataset.tab);
+  });
+  bar.style.gridTemplateColumns = `repeat(${show.length}, 1fr)`;
+  bar.hidden = false;
+  markTab('report');
+}
+
+function markTab(tab) {
+  $('tabs').querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === tab ? 'true' : 'false'));
+}
+
+function setTab(tab) {
+  markTab(tab);
+  showScreen(TAB_SCREENS[tab]);
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  if (tab === 'order') buildOrderChips();
+  if (tab === 'buy') refreshPurchase();
+  if (tab === 'rev' && !revLoaded) pickPreset('week');
+  window.scrollTo(0, 0);
+}
+
+/* ---------- срочная заявка ---------- */
+
+let orderedToday = [];
+
+function setOrderedToday(list) {
+  orderedToday = Array.isArray(list) ? list : [];
+  const text = orderedToday.length ? 'Уже заказано сегодня: ' + orderedToday.join(', ') : '';
+  ['orderedTodayNote', 'orderedTodayNote2'].forEach(id => { $(id).textContent = text; $(id).hidden = !text; });
+}
+
+// Кнопки заявки — те же, что в отчёте
+function buildOrderChips() {
+  const box = $('orderChips');
+  const keep = new Set([...box.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item));
+  box.textContent = '';
+  document.querySelectorAll('#chips .chip').forEach(src => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = src.dataset.item; b.dataset.item = src.dataset.item;
+    b.setAttribute('aria-pressed', keep.has(src.dataset.item) ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    });
+    box.appendChild(b);
+  });
+}
+
+async function submitOrder() {
+  if (busy) return;
+  const picked = [...$('orderChips').querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item);
+  const typed = $('orderNow').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const items = picked.concat(typed);
+  if (!items.length) return alert_('Отметьте кнопки или впишите, что нужно.');
+  if (!inTg || !apiReady) return alert_('Откройте форму через бота в Телеграме.');
+  setBusy(true);
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ initData, action: 'order', items, typed }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    $('orderChips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+    $('orderNow').value = '';
+    setOrderedToday(data.orderedToday);
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    await alert_(data.sent ? 'Заявка отправлена закупщику ✅' : 'Заявка добавлена в список закупки ✅');
+  } catch (e) {
+    await alert_('Не получилось отправить заявку: ' + e.message + '\nПроверьте интернет и попробуйте ещё раз.');
+  } finally {
+    setBusy(false);
   }
 }
 
-// Владелец переключается между отчётом и списком закупки
-function setTab(tab) {
-  const buy = tab === 'buy';
-  $('tabReport').setAttribute('aria-pressed', buy ? 'false' : 'true');
-  $('tabBuy').setAttribute('aria-pressed', buy ? 'true' : 'false');
-  $('buyer').hidden = !buy;
-  showForm(!buy);
-  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-  if (buy) refreshPurchase();
-  window.scrollTo(0, 0);
-}
-$('tabReport').addEventListener('click', () => setTab('report'));
-$('tabBuy').addEventListener('click', () => setTab('buy'));
+/* ---------- список закупки (закупщик и владелец) ---------- */
 
-/* ---------- список закупки (для закупщика) ---------- */
-
-let purchase = [];
+let purchase = [];        // товары: { id, name, bought, source, sec, ord }
+let sections = [];        // отделы по порядку: { id, name }
 let purchaseBusy = 0;
+let editingSections = false;
+let dragging = false;
+let justDragged = false;
+let pendingRender = false;
+let sortables = [];
 
-function showBuyer(items) {
-  showForm(false);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function pl(n, one, few, many) {
+  const a = n % 100, b = n % 10;
+  if (a >= 11 && a <= 14) return many;
+  if (b === 1) return one;
+  if (b >= 2 && b <= 4) return few;
+  return many;
+}
+
+function showBuyer(items, secs, stock) {
   $('gate').hidden = true;
-  $('buyer').hidden = false;
   purchase = items || [];
+  sections = secs || [];
   renderPurchase();
+  renderStockView(stock);
+  showScreen('buyer');
+}
+
+// Остатки из последнего отчёта: закупщик видит, чего мало, и может добавить в список
+function renderStockView(sv) {
+  if (!sv || !sv.items || !sv.items.length) { $('stockBlock').hidden = true; return; }
+  $('stockBlock').hidden = false;
+  $('stockInfo').textContent = sv.date
+    ? `По последнему отчёту: ${ddmm(sv.date)}${sv.barista ? ', ' + sv.barista : ''}. Нажмите «+», чтобы добавить товар в список.`
+    : 'Отчётов пока нет.';
+  const box = $('stockView');
+  box.textContent = '';
+  let group = null;
+  sv.items.forEach(x => {
+    if (x.group !== group) { box.appendChild(el('h3', null, x.group)); group = x.group; }
+    const low = x.min != null && x.value != null && x.value <= x.min;
+    const row = el('div', 'srow' + (low ? ' low' : ''));
+    const span = el('span', null, `${x.name} / ${x.unit}`);
+    if (low) span.appendChild(el('small', null, `мало — минимум ${x.min}`));
+    const add = toolBtn('+', 'Добавить в список закупки', false, () => addItem(x.name));
+    add.classList.add('add-tool');
+    row.append(span, el('b', 'sval', x.value == null ? '-' : String(x.value)), add);
+    box.appendChild(row);
+  });
+}
+
+function itemButton(x) {
+  const b = el('button', 'pitem' + (x.bought ? ' done' : ''), x.name);
+  b.type = 'button';
+  b.dataset.name = x.name;
+  if (x.source) b.title = x.source;
+  b.addEventListener('click', () => {
+    if (justDragged || x.id === 'new') return;   // только что перетащили или ещё сохраняется
+    x.bought ? askReturn(x) : markBought(x);
+  });
+  return b;
+}
+
+function toolBtn(label, title, disabled, fn) {
+  const b = el('button', 'tool', label);
+  b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.disabled = disabled;
+  b.addEventListener('click', fn);
+  return b;
 }
 
 function renderPurchase() {
+  if (dragging) { pendingRender = true; return; }   // не мешаем перетаскиванию
   const bought = purchase.filter(x => x.bought);
   const need = purchase.filter(x => !x.bought);
-  const make = (x) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pitem' + (x.bought ? ' done' : '');
-    b.textContent = x.name;
-    if (x.source) b.title = x.source;
-    b.addEventListener('click', () => {
-      if (x.id === 'new') return;   // ещё сохраняется — подождём ответа сервера
-      x.bought ? askReturn(x) : markBought(x);
-    });
-    return b;
-  };
-  $('boughtList').replaceChildren(...bought.map(make));
-  $('needList').replaceChildren(...need.map(make));
+  $('boughtList').replaceChildren(...bought.map(itemButton));
   $('boughtBlock').hidden = !bought.length;
-  $('needEmpty').hidden = need.length > 0;
+  $('needEmpty').hidden = need.length > 0 || editingSections;
+  $('dragHint').hidden = !need.length || !window.Sortable || editingSections;
+  $('editSections').textContent = editingSections ? 'Готово' : 'Изменить отделы';
+  $('addSectionRow').hidden = !editingSections;
   $('buyerInfo').textContent = need.length
-    ? `Нужно купить: ${need.length} ${need.length % 10 === 1 && need.length % 100 !== 11 ? 'позиция'
-      : [2, 3, 4].includes(need.length % 10) && ![12, 13, 14].includes(need.length % 100) ? 'позиции' : 'позиций'}`
+    ? `Нужно купить: ${need.length} ${pl(need.length, 'позиция', 'позиции', 'позиций')}`
     : 'Сейчас ничего не нужно';
+
+  const known = new Set(sections.map(s => s.id));
+  const box = $('sections');
+  box.classList.toggle('editing', editingSections);
+  sortables.forEach(s => s.destroy());
+  sortables = [];
+  box.textContent = '';
+
+  sections.forEach((s, i) => {
+    const items = need.filter(x => (known.has(x.sec) ? x.sec : 'other') === s.id).sort((a, b) => a.ord - b.ord);
+    const card = el('div', 'psec' + (items.length ? '' : ' empty'));
+    const head = el('div', 'psec-head');
+    const title = el('div', 'psec-title', s.name);
+    const tools = el('div', 'psec-tools');
+    const saved = !String(s.id).startsWith('new-');
+    tools.append(
+      toolBtn('↑', 'Поднять отдел', i === 0 || !saved, () => moveSection(s.id, -1)),
+      toolBtn('↓', 'Опустить отдел', i === sections.length - 1 || !saved, () => moveSection(s.id, 1)),
+      toolBtn('✎', 'Переименовать отдел', !saved, () => renameSection(s, title)),
+    );
+    if (s.id !== 'other') tools.append(toolBtn('×', 'Удалить отдел', !saved, () => deleteSection(s)));
+    head.append(title, el('div', 'psec-count', items.length ? String(items.length) : ''), tools);
+    const list = el('div', 'plist');
+    list.dataset.sec = s.id;
+    list.append(...items.map(itemButton));
+    card.append(head, list);
+    box.appendChild(card);
+
+    if (window.Sortable) {
+      sortables.push(new Sortable(list, {
+        group: 'purchase', animation: 150,
+        delay: 250, delayOnTouchOnly: true, touchStartThreshold: 6,   // зажать, а не просто коснуться
+        ghostClass: 'drag-ghost', chosenClass: 'drag-chosen',
+        onStart: () => {
+          dragging = true; justDragged = true;
+          box.classList.add('dragging');
+          if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+        },
+        onEnd: () => {
+          dragging = false;
+          box.classList.remove('dragging');
+          setTimeout(() => { justDragged = false; }, 350);
+          saveLayout();
+        },
+      }));
+    }
+  });
 }
 
-// Отправляем действие на сервер; если не вышло — возвращаем список как был
+// Запоминаем, в каком отделе и на каком месте теперь каждый товар
+function saveLayout() {
+  const layout = [...$('sections').querySelectorAll('.plist[data-sec]')].map(list => ({
+    sec: list.dataset.sec,
+    names: [...list.querySelectorAll('.pitem')].map(b => b.dataset.name),
+  }));
+  layout.forEach(part => part.names.forEach((n, i) => {
+    purchase.filter(x => !x.bought && x.name === n).forEach(x => { x.sec = part.sec; x.ord = i; });
+  }));
+  pendingRender = false;
+  setTimeout(renderPurchase, 0);
+  purchaseOp({ op: 'layout', layout: layout.filter(p => p.names.length && !p.sec.startsWith('new-')) });
+}
+
+// Отправляем действие на сервер; если не вышло — возвращаем как было
 async function purchaseOp(body, rollback) {
   purchaseBusy++;
   try {
@@ -832,12 +1143,18 @@ async function purchaseOp(body, rollback) {
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
-    if (purchaseBusy === 1) { purchase = data.items; renderPurchase(); }
+    if (purchaseBusy === 1) {
+      purchase = data.items;
+      if (data.sections) sections = data.sections;
+      renderPurchase();
+    }
+    if (data.stock) renderStockView(data.stock);
   } catch (e) {
     if (rollback) { rollback(); renderPurchase(); }
     alert_('Не получилось сохранить: ' + e.message + '\nПроверьте интернет и попробуйте ещё раз.');
   } finally {
     purchaseBusy--;
+    if (!purchaseBusy && pendingRender && !dragging) { pendingRender = false; renderPurchase(); }
   }
 }
 
@@ -845,7 +1162,7 @@ function moveItem(x, bought) {
   purchase = purchase.filter(i => i !== x);
   x.bought = bought;
   if (bought) purchase.unshift(x);    // купленное — наверх
-  else purchase.push(x);              // вернули — в конец списка «нужно»
+  else purchase.push(x);
 }
 
 function markBought(x) {
@@ -864,16 +1181,18 @@ async function askReturn(x) {
   purchaseOp({ op: 'need', id: x.id }, () => { x.bought = true; purchase = before; });
 }
 
-function addItem() {
+function addItem(fromStock) {
   const input = $('newItem');
-  const name = input.value.trim();
+  const typed = typeof fromStock !== 'string';
+  const name = (typed ? input.value : fromStock).trim();
   if (name.length < 2) return alert_('Напишите название товара.');
   const same = purchase.find(i => i.name.toLowerCase() === name.toLowerCase());
-  if (same && !same.bought) { input.value = ''; return alert_(`«${same.name}» уже есть в списке.`); }
+  if (same && !same.bought) { if (typed) input.value = ''; return alert_(`«${same.name}» уже есть в списке.`); }
+  if (!typed && tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
   const before = purchase.slice();
   if (same) moveItem(same, false);
-  else purchase.push({ id: 'new', name, bought: false });
-  input.value = '';
+  else purchase.push({ id: 'new', name, bought: false, sec: 'other', ord: 1e9 });
+  if (typed) input.value = '';
   renderPurchase();
   purchaseOp({ op: 'add', name }, () => { if (same) same.bought = true; purchase = before; });
 }
@@ -887,17 +1206,264 @@ async function clearBought() {
 }
 
 async function refreshPurchase() {
-  if (purchaseBusy) return;
+  if (purchaseBusy || dragging) return;
   purchaseOp({ op: 'list' });
+}
+
+/* --- отделы: добавить, переименовать, переставить, удалить --- */
+
+function moveSection(id, dir) {
+  const i = sections.findIndex(s => s.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= sections.length) return;
+  const before = sections.slice();
+  [sections[i], sections[j]] = [sections[j], sections[i]];
+  renderPurchase();
+  purchaseOp({ op: 'secOrder', ids: sections.map(s => s.id) }, () => { sections = before; });
+}
+
+function renameSection(s, title) {
+  const input = el('input', 'psec-rename');
+  input.value = s.name;
+  input.maxLength = 40;
+  title.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    const name = input.value.trim();
+    if (save && name.length >= 2 && name !== s.name) {
+      const old = s.name;
+      s.name = name;
+      renderPurchase();
+      purchaseOp({ op: 'secRename', id: s.id, name }, () => { s.name = old; });
+    } else {
+      renderPurchase();
+    }
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+async function deleteSection(s) {
+  if (!(await confirm_(`Удалить отдел «${s.name}»? Его товары бот разложит по другим отделам.`))) return;
+  const before = sections.slice();
+  sections = sections.filter(x => x !== s);
+  renderPurchase();
+  purchaseOp({ op: 'secDelete', id: s.id }, () => { sections = before; });
+}
+
+function addSection() {
+  const input = $('newSection');
+  const name = input.value.trim();
+  if (name.length < 2) return alert_('Напишите название отдела.');
+  if (sections.some(s => s.name.toLowerCase() === name.toLowerCase())) return alert_('Такой отдел уже есть.');
+  input.value = '';
+  const before = sections.slice();
+  const i = sections.findIndex(s => s.id === 'other');
+  sections.splice(i < 0 ? sections.length : i, 0, { id: 'new-' + Date.now(), name });
+  renderPurchase();
+  purchaseOp({ op: 'secAdd', name }, () => { sections = before; });
 }
 
 $('addItem').addEventListener('click', addItem);
 $('newItem').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } });
 $('clearBought').addEventListener('click', clearBought);
 $('refreshList').addEventListener('click', refreshPurchase);
-// Вернулся в приложение — обновим список (вдруг бариста добавили заявку)
+$('editSections').addEventListener('click', () => { editingSections = !editingSections; renderPurchase(); });
+$('addSection').addEventListener('click', addSection);
+$('newSection').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addSection(); } });
+// Вернулся в приложение — обновим список (вдруг пришла заявка)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !$('buyer').hidden) refreshPurchase();
+  if (!document.hidden && screen === 'buyer') refreshPurchase();
+});
+
+
+/* ---------- выручка (только владелец) ---------- */
+
+let revLoaded = false;
+let revSeq = 0;
+const PRESETS = [
+  ['today', 'Сегодня'], ['yesterday', 'Вчера'], ['week', 'Эта неделя'], ['lastweek', 'Прошлая неделя'],
+  ['month', 'Этот месяц'], ['lastmonth', 'Прошлый месяц'], ['custom', 'Свой период'],
+];
+const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
+function isoAdd(iso, days) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function mondayIso(iso) { return isoAdd(iso, -((new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7)); }
+function dmyFull(iso) { const p = iso.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; }
+function rangeLabel(f, t) { return f === t ? dmyFull(f) : `${dmyFull(f)} – ${dmyFull(t)}`; }
+function weekday(iso) { return WEEKDAYS[new Date(iso + 'T00:00:00Z').getUTCDay()]; }
+
+function presetRange(p) {
+  const t = todayISO();
+  if (p === 'today') return [t, t];
+  if (p === 'yesterday') { const y = isoAdd(t, -1); return [y, y]; }
+  if (p === 'week') return [mondayIso(t), t];
+  if (p === 'lastweek') { const m = isoAdd(mondayIso(t), -7); return [m, isoAdd(m, 6)]; }
+  if (p === 'month') return [t.slice(0, 8) + '01', t];
+  if (p === 'lastmonth') { const end = isoAdd(t.slice(0, 8) + '01', -1); return [end.slice(0, 8) + '01', end]; }
+  return [$('revFrom').value || t, $('revTo').value || t];
+}
+
+function buildPresets() {
+  const box = $('revPresets');
+  box.textContent = '';
+  PRESETS.forEach(([id, label]) => {
+    const b = el('button', 'chip', label);
+    b.type = 'button'; b.dataset.p = id; b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => pickPreset(id));
+    box.appendChild(b);
+  });
+}
+
+function pickPreset(p) {
+  $('revPresets').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.p === p ? 'true' : 'false'));
+  $('revCustom').hidden = p !== 'custom';
+  if (p === 'custom') {
+    if (!$('revFrom').value) { const [f, t] = presetRange('month'); $('revFrom').value = f; $('revTo').value = t; }
+    return;
+  }
+  const [f, t] = presetRange(p);
+  loadRevenue(f, t);
+}
+
+async function loadRevenue(from, to) {
+  revLoaded = true;
+  const seq = ++revSeq;
+  $('revRange').textContent = rangeLabel(from, to);
+  $('revBody').replaceChildren(el('div', 'loading-note', 'Считаю…'));
+  try {
+    const res = await fetch(`${API_URL}?action=revenue&from=${from}&to=${to}&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (seq !== revSeq) return;   // уже выбрали другой период
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    $('revRange').textContent = rangeLabel(data.from, data.to);
+    renderRevenue(data);
+  } catch (e) {
+    if (seq === revSeq) $('revBody').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+  }
+}
+
+function kv(label, value, sub, sub2) {
+  const row = el('div', 'kv');
+  const left = el('div', null, label);
+  if (sub) left.appendChild(el('small', null, sub));
+  const right = el('div', null);
+  right.appendChild(el('b', null, value));
+  if (sub2) right.appendChild(el('small', null, sub2));
+  right.style.textAlign = 'right';
+  row.append(left, right);
+  return row;
+}
+
+function renderRevenue(d) {
+  const out = [];
+  const money = n => fmt(n) + ' ₽';
+
+  // Итог
+  const top = el('div', 'card');
+  top.append(el('div', 'note', 'Выручка'), el('div', 'big', money(d.rev)));
+  if (d.prev && d.prev.rev > 0) {
+    const pct = Math.round((d.rev - d.prev.rev) / d.prev.rev * 100);
+    top.appendChild(el('div', 'cmp ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : ''),
+      `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}% к прошлому периоду`));
+    top.appendChild(el('div', 'note',
+      `${dmyFull(d.prev.from).slice(0, 5)}–${dmyFull(d.prev.to).slice(0, 5)}: ${money(d.prev.rev)}`));
+  }
+  top.appendChild(el('div', 'note', d.n
+    ? `${d.n} ${pl(d.n, 'смена', 'смены', 'смен')} · в среднем ${money(Math.round(d.rev / d.n))} за смену`
+    : 'Отчётов за этот период нет'));
+  out.push(top);
+  if (!d.n) { $('revBody').replaceChildren(...out); return; }
+
+  // Деньги
+  const money2 = el('div', 'card');
+  money2.append(kv('Наличные', money(d.cash)), kv('Безнал', money(d.card)),
+    kv('Расходы из кассы', money(d.exp)), kv('Зарплата', money(d.salary)));
+  out.push(money2);
+
+  // Касса не сходилась — с именами
+  if (d.bad.length) {
+    out.push(el('h2', 'sec', 'Касса не сходилась'));
+    const c = el('div', 'card');
+    d.bad.forEach(b => {
+      const r = kv(`${weekday(b.iso)} ${dmyFull(b.iso).slice(0, 5)}`, (b.diff > 0 ? '+' : '') + money(b.diff), b.names.join(' и '));
+      r.classList.add('bad-row');
+      c.appendChild(r);
+    });
+    out.push(c);
+  }
+
+  // По бариста
+  if (d.baristas.length) {
+    out.push(el('h2', 'sec', 'По бариста'));
+    const c = el('div', 'card');
+    d.baristas.forEach(b => {
+      const shifts = `${b.n} ${pl(b.n, 'смена', 'смены', 'смен')}` + (b.paired ? `, из них ${b.paired} в паре` : '');
+      c.appendChild(kv(b.name, money(b.rev), `${shifts} · в среднем ${money(b.avg)}`, 'з/п ' + money(b.salary)));
+    });
+    c.appendChild(el('p', 'note', 'В парной смене выручка делится пополам между бариста.'));
+    out.push(c);
+  }
+
+  // По дням: столбики и список
+  out.push(el('h2', 'sec', 'По дням'));
+  const days = el('div', 'card');
+  const perDay = {};
+  d.shifts.forEach(s => { perDay[s.iso] = (perDay[s.iso] || 0) + s.rev; });
+  if (d.days > 1 && d.days <= 62) {
+    const max = Math.max(1, ...Object.values(perDay));
+    const bars = el('div', 'bars');
+    for (let i = 0; i < d.days; i++) {
+      const iso = isoAdd(d.from, i);
+      const v = perDay[iso] || 0;
+      const bar = el('div', 'bar' + (v ? '' : ' zero'));
+      bar.style.height = Math.max(2, Math.round(v / max * 100)) + '%';
+      bar.title = `${dmyFull(iso)}: ${money(v)}`;
+      bars.appendChild(bar);
+    }
+    const axis = el('div', 'bars-axis');
+    axis.append(el('span', null, dmyFull(d.from).slice(0, 5)), el('span', null, dmyFull(d.to).slice(0, 5)));
+    days.append(bars, axis);
+  }
+  const byDay = {};
+  d.shifts.forEach(s => { (byDay[s.iso] = byDay[s.iso] || []).push(s); });
+  Object.keys(byDay).sort().reverse().forEach(iso => {
+    const list = byDay[iso];
+    const total = list.reduce((a, s) => a + s.rev, 0);
+    const wrap = el('div', 'day');
+    const row = kv(`${weekday(iso)} ${dmyFull(iso).slice(0, 5)}`, money(total), list.map(s => s.names.join(' + ')).join('; '));
+    row.style.cursor = 'pointer';
+    const detail = el('div', 'day-detail');
+    detail.hidden = true;
+    list.forEach(s => {
+      const cashOk = Math.abs(s.diff) < 0.01 ? 'касса сошлась ✅' : `касса: ${s.diff > 0 ? '+' : ''}${money(s.diff)} ⚠️`;
+      detail.appendChild(el('div', null,
+        `${s.names.join(' + ')}: нал ${money(s.cash)} · безнал ${money(s.card)} · расходы ${money(s.exp)} · ${cashOk}`));
+    });
+    row.addEventListener('click', () => { detail.hidden = !detail.hidden; });
+    wrap.append(row, detail);
+    days.appendChild(wrap);
+  });
+  out.push(days);
+  $('revBody').replaceChildren(...out);
+}
+
+buildPresets();
+$('revShow').addEventListener('click', () => {
+  const f = $('revFrom').value, t = $('revTo').value;
+  if (!f || !t) return alert_('Выберите обе даты.');
+  loadRevenue(f <= t ? f : t, f <= t ? t : f);
 });
 
 /* ---------- исправление отправленного отчёта ---------- */
@@ -950,7 +1516,7 @@ function startEdit(ed) {
   $('cashStartHint').textContent = '';
 
   const chipMap = {};
-  document.querySelectorAll('.chip').forEach(c => { chipMap[c.dataset.item.toLowerCase()] = c; c.setAttribute('aria-pressed', 'false'); });
+  document.querySelectorAll('#chips .chip').forEach(c => { chipMap[c.dataset.item.toLowerCase()] = c; c.setAttribute('aria-pressed', 'false'); });
   const typed = [];
   (r.order || []).forEach(item => {
     const c = chipMap[String(item).toLowerCase()];
@@ -984,7 +1550,7 @@ function addChip(item) {
   item = String(item || '').trim();
   if (!item) return;
   const key = item.toLowerCase();
-  if ([...document.querySelectorAll('.chip')].some(c => c.dataset.item.toLowerCase() === key)) return;
+  if ([...document.querySelectorAll('#chips .chip')].some(c => c.dataset.item.toLowerCase() === key)) return;
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'chip'; b.textContent = item; b.dataset.item = item;
   b.setAttribute('aria-pressed', draftChips.has(item) ? 'true' : 'false');
@@ -1001,7 +1567,7 @@ function applyLearned(items) {
   if (!Array.isArray(items) || !items.length) return;
   storage(ls => ls.setItem(LEARNED_KEY, JSON.stringify(items)));
   const keep = new Set(items.map(s => String(s).toLowerCase()));
-  document.querySelectorAll('.chip').forEach(c => {
+  document.querySelectorAll('#chips .chip').forEach(c => {
     if (!keep.has(c.dataset.item.toLowerCase()) && c.getAttribute('aria-pressed') !== 'true') c.remove();
   });
   items.forEach(addChip);
@@ -1158,10 +1724,12 @@ if (tg) {
   }
 }
 if (inTg && tg.MainButton) {
-  tg.MainButton.onClick(submit);
+  tg.MainButton.onClick(() => (screen === 'order' ? submitOrder() : submit()));
 } else {
   $('sendBtn').hidden = false;
   $('sendBtn').addEventListener('click', submit);
+  $('sendOrderBtn').hidden = false;
+  $('sendOrderBtn').addEventListener('click', submitOrder);
   showBanner('Откройте эту форму через бота в Телеграме — иначе отчёт не отправится.');
 }
 
