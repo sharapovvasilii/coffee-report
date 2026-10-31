@@ -128,14 +128,20 @@
   .edit-card { border: 1.5px solid var(--accent); padding: 12px; }
   .edit-card p { margin: 4px 0 6px; font-size: 14px; }
 
-  .gate { text-align: center; padding: 28px 18px 20px; margin-top: 8vh; }
+  /* Экраны загрузки и доступа — большая белая карточка на весь экран */
+  .gate {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; min-height: calc(100vh - 28px); min-height: calc(100dvh - 28px);
+    margin: 0; padding: 24px 20px; border-radius: 16px;
+  }
   .gate-icon { font-size: 52px; line-height: 1; }
-  .gate-logo { width: 100%; max-width: 280px; max-height: 120px; object-fit: contain; }
-  .gate.loading .gate-icon { animation: pulse 1.4s ease-in-out infinite; }
-  @keyframes pulse { 50% { opacity: .35; transform: scale(.96); } }
+  .gate-art { width: 48vw; max-width: 220px; height: auto; display: block; }
+  .gate.loading .gate-icon { animation: float 2.4s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-5px); } }
   @media (prefers-reduced-motion: reduce) { .gate.loading .gate-icon { animation: none; } }
-  .gate h1 { margin: 12px 0 6px; font-size: 22px; }
-  .gate p { color: var(--hint); margin: 0 0 16px; }
+  .gate h1 { margin: 20px 0 6px; font-size: 22px; font-weight: 700; }
+  .gate p { color: #7a7a7a; font-size: 13px; margin: 0 0 16px; max-width: 320px; }
+  .gate input, .gate .btn { width: 100%; max-width: 320px; }
   .gate input { text-align: center; }
 </style>
 </head>
@@ -262,9 +268,9 @@ const BARISTAS = [
   'Уоттаах Туйаара Ньургун',
 ];
 
-// Логотип на экране загрузки: файл logo.png рядом с index.html на GitHub.
-// Если файла нет — будет эмодзи ☕. Чтобы убрать логотип совсем: const LOGO = '';
-const LOGO = 'logo.png';
+// Картинка на экране загрузки: файл loading.png рядом с index.html на GitHub.
+// Если файла нет — будет эмодзи ☕. Чтобы убрать картинку совсем: const LOADING_ART = '';
+const LOADING_ART = 'loading.png';
 
 // Время смены по умолчанию
 const SHIFT_FROM = '10:00';
@@ -653,10 +659,10 @@ function gate(state, detail) {
   const set = (icon, title, text, withLogo) => {
     const box = $('gateIcon');
     box.textContent = '';
-    if (withLogo && LOGO) {
+    if (withLogo && LOADING_ART) {
       const img = new Image();
-      img.className = 'gate-logo'; img.alt = ''; img.src = LOGO;
-      img.onerror = () => { box.textContent = icon; };   // нет файла логотипа — показываем эмодзи
+      img.className = 'gate-art'; img.alt = ''; img.src = LOADING_ART;
+      img.onerror = () => { box.textContent = icon; };   // нет файла картинки — показываем эмодзи
       box.appendChild(img);
     } else {
       box.textContent = icon;
@@ -667,7 +673,7 @@ function gate(state, detail) {
   const button = (label, fn) => { btn.hidden = false; btn.textContent = label; btn.onclick = fn; };
 
   if (state === 'loading') {
-    set('☕', 'Загружаю форму…', 'Это займёт пару секунд', true);
+    set('☕', 'Загружаю форму...', 'Это займет пару секунд', true);
   } else if (state === 'none') {
     set('🔐', 'Нужен доступ', 'Форма только для сотрудников кофейни. Напишите, как вас зовут, — владелец получит запрос и подтвердит.');
     const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
