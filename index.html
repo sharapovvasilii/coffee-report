@@ -178,10 +178,18 @@
   .add-tool { color: var(--accent); font-size: 20px; font-weight: 500; }
 
   /* Выручка */
-  .presets { margin: 4px 0 10px; }
-  .presets .chip { background: var(--card); color: var(--text); }
+  /* Периоды — одна строка, листается вбок */
+  .presets {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    margin: 4px -14px 10px; padding: 0 14px; scroll-padding: 0 14px;
+  }
+  .presets::-webkit-scrollbar { display: none; }
+  .presets .chip { flex: none; white-space: nowrap; background: var(--card); color: var(--text); }
   .presets .chip[aria-pressed="true"] { background: var(--dark); color: #fff; }
-  .rev-show { margin: 6px 0 4px auto; }
+  /* Свой период — «С [дата] по [дата]» в одну строку */
+  .range-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .range-row span { color: var(--hint); }
+  .range-row input { flex: 1; min-width: 0; text-align: center; }
   .big { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 2px 0; }
   .cmp { font-size: 13px; font-weight: 600; }
   .cmp.up { color: var(--ok); }
@@ -397,9 +405,10 @@
   </header>
   <div class="chips presets" id="revPresets"></div>
   <div class="card" id="revCustom" hidden>
-    <label class="row"><span>С</span><input type="date" id="revFrom"></label>
-    <label class="row"><span>По</span><input type="date" id="revTo"></label>
-    <button type="button" class="btn btn-small rev-show" id="revShow">Показать</button>
+    <div class="range-row">
+      <span>С</span><input type="date" id="revFrom" aria-label="С какого дня">
+      <span>по</span><input type="date" id="revTo" aria-label="По какой день">
+    </div>
   </div>
   <div id="revBody"></div>
 </main>
@@ -1327,10 +1336,15 @@ function buildPresets() {
 }
 
 function pickPreset(p) {
-  $('revPresets').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.p === p ? 'true' : 'false'));
+  $('revPresets').querySelectorAll('.chip').forEach(c => {
+    const on = c.dataset.p === p;
+    c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) c.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  });
   $('revCustom').hidden = p !== 'custom';
   if (p === 'custom') {
     if (!$('revFrom').value) { const [f, t] = presetRange('month'); $('revFrom').value = f; $('revTo').value = t; }
+    loadCustomRange();
     return;
   }
   const [f, t] = presetRange(p);
@@ -1460,11 +1474,17 @@ function renderRevenue(d) {
 }
 
 buildPresets();
-$('revShow').addEventListener('click', () => {
-  const f = $('revFrom').value, t = $('revTo').value;
-  if (!f || !t) return alert_('Выберите обе даты.');
-  loadRevenue(f <= t ? f : t, f <= t ? t : f);
-});
+// Свой период: выручка обновляется сама, как только выбраны обе даты
+let customTimer;
+function loadCustomRange() {
+  clearTimeout(customTimer);
+  customTimer = setTimeout(() => {
+    const f = $('revFrom').value, t = $('revTo').value;
+    if (f && t) loadRevenue(f <= t ? f : t, f <= t ? t : f);
+  }, 400);
+}
+$('revFrom').addEventListener('change', loadCustomRange);
+$('revTo').addEventListener('change', loadCustomRange);
 
 /* ---------- исправление отправленного отчёта ---------- */
 
