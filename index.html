@@ -4,20 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Отчёт смены</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
+  /* Фирменный стиль: всегда светлая тема, оранжевый акцент */
   :root {
-    --bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
-    --card: var(--tg-theme-bg-color, #ffffff);
-    --text: var(--tg-theme-text-color, #1c1c1e);
-    --hint: var(--tg-theme-hint-color, #8e8e93);
-    --accent: var(--tg-theme-button-color, #2481cc);
-    --accent-text: var(--tg-theme-button-text-color, #ffffff);
-    --field: var(--tg-theme-secondary-bg-color, #f2f2f7);
-    --line: rgba(128, 128, 128, .18);
+    --bg: #eeefec;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --hint: #9a9a9a;
+    --field: #f1f1f0;
+    --accent: #f25c26;
+    --accent-text: #ffffff;
+    --chip: #6f6f6f;
+    --dark: #111111;
     --ok: #2e9e5b;
-    --warn: #d9822b;
+    --warn: #e07b1f;
     --err: #d64545;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }   /* скрытое должно быть скрыто, даже у кнопок и строк */
@@ -25,87 +31,110 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font: 16px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    padding: 12px 12px 90px;
+    font: 15px/1.35 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 14px 14px 100px;
     -webkit-tap-highlight-color: transparent;
   }
-  header { padding: 4px 4px 10px; }
-  h1 { font-size: 22px; margin: 0; }
-  .sub { color: var(--hint); font-size: 13px; margin-top: 2px; }
+  header { padding: 2px 2px 4px; }
+  h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
+  .sub { color: var(--hint); font-size: 12px; margin-top: 2px; }
   .banner {
-    background: rgba(214, 69, 69, .12); color: var(--err);
+    background: rgba(214, 69, 69, .1); color: var(--err);
     border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 14px;
   }
-  .card { background: var(--card); border-radius: 14px; padding: 6px 14px 10px; margin-bottom: 12px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 10px 0 4px; font-weight: 600; }
-  h3 { font-size: 14px; margin: 12px 0 2px; color: var(--hint); font-weight: 500; }
-  .row {
-    display: flex; align-items: center; gap: 8px;
-    min-height: 46px; border-bottom: 1px solid var(--line);
-  }
-  .row:last-child { border-bottom: 0; }
-  .row > span { flex: 1; }
-  .row small, .srow small { display: block; color: var(--hint); font-size: 12px; }
-  .row em, .srow em { font-style: normal; color: var(--hint); width: 26px; font-size: 14px; }
+
+  /* Заголовки разделов — над карточками */
+  .sec { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; margin: 18px 2px 8px; }
+  .card { background: var(--card); border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
+  h3 { font-size: 15px; font-weight: 700; margin: 8px 0 2px; }
+  .lbl { margin: 8px 0 2px; }
+
+  .row { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 2px 0; }
+  .row > span { flex: 1; min-width: 0; }
+  .row small, .srow small { display: block; color: var(--hint); font-size: 11px; margin-top: 1px; }
+
   input, select, textarea {
-    font: inherit; color: var(--text);
-    background: var(--field); border: 1px solid transparent; border-radius: 10px;
-    padding: 8px 10px; outline: none;
+    font: inherit; font-size: 15px; color: var(--text);
+    background: var(--field); border: 1px solid transparent; border-radius: 8px;
+    padding: 7px 10px; outline: none;
   }
+  input::placeholder, textarea::placeholder { color: var(--hint); }
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-  input.num { width: 110px; text-align: right; }
+  input.num { width: 76px; text-align: right; }
   input.bad { border-color: var(--err); }
-  select { max-width: 60%; }
-  textarea { width: 100%; min-height: 64px; resize: vertical; margin: 6px 0; }
-  .pair { display: flex; align-items: center; gap: 6px; }
-  .pair input { width: 92px; }
-  .full { width: 100%; margin: 4px 0 8px; }
-  .total { font-weight: 600; font-size: 17px; }
-  .status { font-size: 14px; padding: 10px 0 4px; color: var(--hint); }
+  select {
+    width: 58%; -webkit-appearance: none; appearance: none;
+    text-align: right; text-align-last: right;
+  }
+  input[type="date"] { text-align: right; }
+  textarea { width: 100%; min-height: 64px; resize: vertical; margin: 4px 0; border-radius: 10px; }
+  .pair { display: flex; align-items: center; gap: 6px; color: var(--hint); }
+  .pair input { width: 74px; text-align: center; }
+  .full { width: 100%; margin: 2px 0 6px; }
+  .row > .total { flex: none; font-weight: 700; padding-right: 10px; }
+  .status { font-size: 12px; padding: 6px 0 4px; color: var(--hint); }
   .status.ok { color: var(--ok); }
-  .status.warn { color: var(--warn); font-weight: 500; }
+  .status.warn { color: var(--warn); font-weight: 600; }
   .exp { display: flex; gap: 6px; margin: 6px 0; }
   .exp .exp-name { flex: 1; min-width: 0; }
   .exp .exp-sum { width: 90px; text-align: right; }
   .x { background: none; border: 0; color: var(--hint); font-size: 22px; padding: 0 6px; }
-  .link { background: none; border: 0; color: var(--accent); font: inherit; padding: 8px 0; }
-  .grid { display: grid; grid-template-columns: 1fr; }
-  .srow {
-    display: flex; align-items: center; gap: 8px;
-    min-height: 44px; border-bottom: 1px solid var(--line);
+  .link { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 500; padding: 6px 0; }
+
+  /* Одиночная / парная смена */
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; }
+  .seg-btn {
+    font: inherit; border: 0; border-radius: 10px; padding: 13px 8px;
+    background: transparent; color: var(--hint);
   }
-  .srow > span { flex: 1; }
-  .srow input { width: 80px; text-align: right; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .seg-btn[aria-pressed="true"] { background: var(--dark); color: #fff; }
+
+  /* Товарный учёт */
+  .srow { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 2px 0; }
+  .srow > span { flex: 1; min-width: 0; }
+  .srow input { width: 76px; text-align: right; }
+
+  /* Заявка */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
   .chip {
-    font: inherit; font-size: 15px; border-radius: 18px; padding: 6px 12px;
-    border: 1px solid var(--line); background: var(--field); color: var(--text);
+    font: inherit; font-size: 15px; font-weight: 500; border-radius: 8px; padding: 6px 10px;
+    border: 0; background: var(--chip); color: #fff;
   }
-  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .chip[aria-pressed="true"] { background: var(--accent); }
+
   .btn {
-    display: block; width: 100%; border: 0; border-radius: 12px; padding: 14px;
-    background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600;
+    display: block; width: 100%; border: 0; border-radius: 12px; padding: 15px;
+    background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; font-size: 16px;
   }
   .btn:disabled { opacity: .6; }
-  .btn-light { background: var(--field); color: var(--accent); text-align: center; margin: 8px 0 6px; cursor: pointer; }
-  .note { color: var(--hint); font-size: 14px; margin: 4px 0 8px; }
-  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .photos:empty { display: none; }
-  .ph { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; background: var(--field); }
-  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ph button {
-    position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%;
-    border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: 18px; line-height: 28px; padding: 0;
+  .btn-light { background: var(--field); color: var(--accent); text-align: center; margin: 8px 0 4px; }
+
+  /* Фото чека — плитки */
+  .ph-head { margin: 2px 0 8px; }
+  .ph-head b { display: block; font-weight: 700; }
+  .ph-head small { color: var(--hint); font-size: 11px; }
+  .photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; }
+  .ph {
+    position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+    background: var(--field); border: 0; padding: 0;
   }
-  .edit-card { border: 1.5px solid var(--warn); padding: 12px 14px; }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph.add { font: 300 26px/1 Inter, sans-serif; color: #8a8a8a; cursor: pointer; }
+  .ph .del {
+    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+    border: 0; background: rgba(255, 255, 255, .9); color: #333; font-size: 15px; line-height: 22px; padding: 0;
+  }
+
+  .edit-card { border: 1.5px solid var(--accent); padding: 12px; }
   .edit-card p { margin: 4px 0 6px; font-size: 14px; }
+
   .gate { text-align: center; padding: 28px 18px 20px; margin-top: 8vh; }
   .gate-icon { font-size: 52px; line-height: 1; }
   .gate-logo { width: 100%; max-width: 280px; max-height: 120px; object-fit: contain; }
   .gate.loading .gate-icon { animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .35; transform: scale(.96); } }
   @media (prefers-reduced-motion: reduce) { .gate.loading .gate-icon { animation: none; } }
-  .gate h1 { margin: 12px 0 6px; }
+  .gate h1 { margin: 12px 0 6px; font-size: 22px; }
   .gate p { color: var(--hint); margin: 0 0 16px; }
   .gate input { text-align: center; }
 </style>
@@ -138,68 +167,80 @@
   <button type="button" class="btn btn-light" id="editStart">✏️ Исправить отправленный отчёт</button>
 </div>
 
-<section class="card">
-  <h2>Смена</h2>
+<h2 class="sec">Смена</h2>
+<div class="card">
   <label class="row"><span>Дата</span><input type="date" id="date"></label>
+</div>
+
+<div class="card seg">
+  <button type="button" class="seg-btn" id="modeOne" aria-pressed="true">Одиночная смена</button>
+  <button type="button" class="seg-btn" id="modeTwo" aria-pressed="false">Парная смена</button>
+</div>
+
+<div class="card">
   <label class="row"><span>Бариста</span><select id="barista"></select></label>
   <input id="baristaOther" class="full" placeholder="Фамилия и имя" hidden>
   <div class="row"><span>Время</span>
-    <div class="pair"><input type="time" id="shiftFrom"> – <input type="time" id="shiftTo"></div>
+    <div class="pair"><input type="time" id="shiftFrom"> - <input type="time" id="shiftTo"></div>
   </div>
-  <label class="row"><span>Бариста 2<small>если на смене двое</small></span><select id="barista2"></select></label>
-  <input id="baristaOther2" class="full" placeholder="Фамилия и имя" hidden>
-  <div class="row" id="shift2Row" hidden><span>Время</span>
-    <div class="pair"><input type="time" id="shiftFrom2"> – <input type="time" id="shiftTo2"></div>
+  <div id="pairRows" hidden>
+    <label class="row"><span>Бариста</span><select id="barista2"></select></label>
+    <input id="baristaOther2" class="full" placeholder="Фамилия и имя" hidden>
+    <div class="row"><span>Время</span>
+      <div class="pair"><input type="time" id="shiftFrom2"> - <input type="time" id="shiftTo2"></div>
+    </div>
   </div>
-</section>
+</div>
 
-<section class="card">
-  <h2>Фото чека</h2>
-  <p class="note" id="photoNote">Чек закрытия смены и чеки расходов. Можно несколько фото.</p>
+<div class="card">
+  <div class="ph-head">
+    <b>Фото чека</b>
+    <small id="photoNote">Чек закрытия смены и чеки расходов. Можно несколько фото</small>
+  </div>
   <div class="photos" id="photos"></div>
-  <label class="btn btn-light" id="addPhotoBtn">📷 Добавить фото
-    <input type="file" id="photoInput" accept="image/*" multiple hidden>
-  </label>
-</section>
+  <input type="file" id="photoInput" accept="image/*" multiple hidden>
+</div>
 
-<section class="card">
-  <h2>Деньги</h2>
+<h2 class="sec">Деньги</h2>
+<div class="card">
   <div id="moneyRows"></div>
-  <div class="row"><span>Выручка</span><span class="total" id="revenue">—</span></div>
-</section>
+  <div class="row"><span>Выручка</span><span class="total" id="revenue">-</span></div>
+</div>
 
-<section class="card">
-  <h2>Касса</h2>
+<h2 class="sec">Касса</h2>
+<div class="card">
   <div id="cashRows"></div>
-  <h3>Расходы из кассы</h3>
+  <div class="lbl">Расходы из кассы</div>
   <div id="expenses"></div>
   <button type="button" class="link" id="addExpense">+ Добавить расход</button>
   <div id="cashEndRow"></div>
   <div class="status" id="cashStatus"></div>
-</section>
+</div>
 
-<section class="card">
-  <h2>Товарный учёт</h2>
+<h2 class="sec">Товарный учёт</h2>
+<div class="card">
   <div id="stock"></div>
-</section>
+</div>
 
-<section class="card">
-  <h2>Заявка — что закончилось</h2>
+<h2 class="sec">Заявка - что закончилось</h2>
+<div class="card">
   <div class="chips" id="chips"></div>
-  <textarea id="orderText" placeholder="Что ещё нужно — каждое с новой строки"></textarea>
-</section>
+  <textarea id="orderText" placeholder="Что еще нужно - каждое с новой строки"></textarea>
+</div>
 
-<section class="card">
-  <h2>Отзывы гостей</h2>
-  <textarea id="reviews" placeholder="Если были отзывы — напишите"></textarea>
-  <label class="row"><span>Отзывов в 2ГИС за смену<small>+100 ₽ каждому бариста на смене</small></span>
-    <input class="num" id="gis2" inputmode="numeric" autocomplete="off" placeholder="0"><em></em></label>
-</section>
+<h2 class="sec">Отзыв гостей</h2>
+<div class="card">
+  <textarea id="reviews" placeholder="Если были отзывы, жалобы, пожелания - напишите"></textarea>
+</div>
+<div class="card">
+  <label class="row"><span>Отзывов в 2ГИС за смену<small>+ 100 ₽ каждому бариста на смене</small></span>
+    <input class="num" id="gis2" inputmode="numeric" autocomplete="off" placeholder="-"></label>
+</div>
 
-<section class="card">
-  <h2>Отзыв бариста</h2>
-  <textarea id="baristaFeedback" style="min-height: 120px" placeholder="Напишите здесь что угодно, например ваши пожелания: что хотели бы добавить, убрать, что починить, заменить, что можно сделать для улучшения"></textarea>
-</section>
+<h2 class="sec">Отзыв бариста</h2>
+<div class="card">
+  <textarea id="baristaFeedback" style="min-height: 110px" placeholder="Напишите здесь ваши пожелания: что можно сделать для улучшения, что хотели бы добавить, убрать, заменить, что сломано"></textarea>
+</div>
 
 <button id="sendBtn" class="btn" type="button" hidden>Отправить отчёт</button>
 </main>
@@ -315,8 +356,7 @@ function moneyRow(parent, key, label, hintId) {
   const input = document.createElement('input');
   input.className = 'num'; input.inputMode = 'decimal'; input.autocomplete = 'off';
   input.placeholder = '0'; input.id = key;
-  const em = document.createElement('em'); em.textContent = '₽';
-  row.append(span, input, em);
+  row.append(span, input);
   parent.appendChild(row);
   fields[key] = input;
 }
@@ -357,12 +397,11 @@ function renderStock(list) {
       group = g;
     }
     const row = document.createElement('label'); row.className = 'srow';
-    const span = document.createElement('span'); span.textContent = name;
+    const span = document.createElement('span'); span.textContent = name + ' / ' + (unit || 'шт');
     const hint = document.createElement('small'); span.appendChild(hint);
     const input = document.createElement('input');
-    input.inputMode = 'decimal'; input.autocomplete = 'off'; input.placeholder = '—';
-    const em = document.createElement('em'); em.textContent = unit || 'шт';
-    row.append(span, input, em);
+    input.inputMode = 'decimal'; input.autocomplete = 'off'; input.placeholder = '-';
+    row.append(span, input);
     box.appendChild(row);
     if (old[name]) { input.value = old[name].value; hint.textContent = old[name].hint; }
     stockEls.push({ group: g, name, unit: unit || 'шт', el: input, hint });
@@ -374,14 +413,16 @@ function applyConfig(cfg) {
   config = { stock: cfg.stock, baristas: Array.isArray(cfg.baristas) ? cfg.baristas : config.baristas };
   storage(ls => ls.setItem(CONFIG_KEY, JSON.stringify(config)));
   renderStock(config.stock);
-  fillBaristas($('barista'), 'Выберите…', config.baristas);
-  fillBaristas($('barista2'), '— нет —', config.baristas);
+  fillBaristas($('barista'), 'Имя', config.baristas);
+  fillBaristas($('barista2'), 'Имя', config.baristas);
   updateBaristaRows();
 }
 
 function build() {
-  fillBaristas($('barista'), 'Выберите…', config.baristas);
-  fillBaristas($('barista2'), '— нет —', config.baristas);
+  fillBaristas($('barista'), 'Имя', config.baristas);
+  fillBaristas($('barista2'), 'Имя', config.baristas);
+  $('modeOne').addEventListener('click', () => setPairMode(false));
+  $('modeTwo').addEventListener('click', () => setPairMode(true));
   $('barista').addEventListener('change', updateBaristaRows);
   $('barista2').addEventListener('change', updateBaristaRows);
 
@@ -390,6 +431,7 @@ function build() {
     .forEach(k => { fields[k] = $(k); });
 
   $('photoInput').addEventListener('change', e => { addPhotos(e.target.files); e.target.value = ''; });
+  renderPhotos();
 
   moneyRow($('moneyRows'), 'cash', 'Наличные');
   moneyRow($('moneyRows'), 'card', 'Безнал');
@@ -460,7 +502,7 @@ function collect() {
 
 function recalc() {
   const r = collect();
-  $('revenue').textContent = (r.cash == null && r.card == null) ? '—' : fmt(r.revenue) + ' ₽';
+  $('revenue').textContent = (r.cash == null && r.card == null) ? '-' : fmt(r.revenue) + ' ₽';
   const st = $('cashStatus');
   if (r.cashStart == null || r.cash == null) {
     st.className = 'status';
@@ -488,6 +530,7 @@ function saveDraft() {
     expenses: [...document.querySelectorAll('.exp')].map(r => ({
       name: r.querySelector('.exp-name').value, sum: r.querySelector('.exp-sum').value })),
     chips: [...document.querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item),
+    pairMode,
   };
   for (const k in fields) d.fields[k] = fields[k].value;
   stockEls.forEach(s => { d.stock[s.name] = s.el.value; });
@@ -507,14 +550,29 @@ function restoreDraft() {
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
   draftChips = new Set(d.chips || []);
   document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
+  pairMode = typeof d.pairMode === 'boolean' ? d.pairMode : !!fields.barista2.value;
   updateBaristaRows();
   return true;
 }
 
+// Одиночная смена — один бариста, парная — двое
+let pairMode = false;
+
+function setPairMode(on) {
+  pairMode = on;
+  if (!on) { fields.barista2.value = ''; fields.baristaOther2.value = ''; }
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  updateBaristaRows();
+  recalc();
+  saveDraftSoon();
+}
+
 function updateBaristaRows() {
+  $('modeOne').setAttribute('aria-pressed', pairMode ? 'false' : 'true');
+  $('modeTwo').setAttribute('aria-pressed', pairMode ? 'true' : 'false');
+  $('pairRows').hidden = !pairMode;
   $('baristaOther').hidden = fields.barista.value !== '__other';
-  $('baristaOther2').hidden = fields.barista2.value !== '__other';
-  $('shift2Row').hidden = !fields.barista2.value;
+  $('baristaOther2').hidden = !pairMode || fields.barista2.value !== '__other';
 }
 
 /* ---------- фото чека ---------- */
@@ -556,13 +614,21 @@ function renderPhotos() {
   photos.forEach((src, i) => {
     const d = document.createElement('div'); d.className = 'ph';
     const img = document.createElement('img'); img.src = src; img.alt = `Фото ${i + 1}`;
-    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'del'; x.textContent = '×';
     x.setAttribute('aria-label', 'Удалить фото');
     x.addEventListener('click', () => { photos.splice(i, 1); renderPhotos(); });
     d.append(img, x);
     box.appendChild(d);
   });
-  $('addPhotoBtn').firstChild.textContent = photos.length ? '📷 Добавить ещё фото' : '📷 Добавить фото';
+  // Плитки «+»: заполняем ряд из четырёх, пока не набран максимум фото
+  const plus = photos.length >= MAX_PHOTOS ? 0 : Math.max(1, 4 - photos.length);
+  for (let k = 0; k < plus; k++) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ph add'; b.textContent = '+';
+    b.setAttribute('aria-label', 'Добавить фото');
+    b.addEventListener('click', () => $('photoInput').click());
+    box.appendChild(b);
+  }
 }
 function clearDraft() { storage(ls => ls.removeItem(DRAFT_KEY)); }
 
@@ -571,7 +637,10 @@ function clearDraft() { storage(ls => ls.removeItem(DRAFT_KEY)); }
 function showForm(on) {
   $('form').hidden = !on;
   if (inTg && tg.MainButton) {
-    tg.MainButton.setParams({ text: editing ? 'Сохранить исправление' : 'Отправить отчёт', is_visible: on });
+    tg.MainButton.setParams({
+      text: editing ? 'Сохранить исправление' : 'Отправить отчёт', is_visible: on,
+      color: '#f25c26', text_color: '#ffffff',
+    });
   }
   $('sendBtn').textContent = editing ? 'Сохранить исправление' : 'Отправить отчёт';
 }
@@ -671,6 +740,7 @@ function startEdit(ed) {
   put('date', r.date);
   setSelectValue(fields.barista, fields.baristaOther, r.barista);
   setSelectValue(fields.barista2, fields.baristaOther2, r.barista2);
+  pairMode = !!r.barista2;
   put('shiftFrom', r.shiftFrom); put('shiftTo', r.shiftTo);
   put('shiftFrom2', r.shiftFrom2 || SHIFT_FROM); put('shiftTo2', r.shiftTo2 || SHIFT_TO);
   ['cash', 'card', 'incass', 'refundCash', 'refundCard', 'cashStart', 'cashEnd', 'reviews', 'baristaFeedback']
@@ -820,6 +890,7 @@ async function submit() {
   if (r.cashStart == null) missing.push('касса на начало');
   if (r.cashEnd == null) missing.push('касса на конец');
   if (!photos.length && !editing) missing.push('фото чека');
+  if (pairMode && !r.barista2) missing.push('второй бариста (или выберите «Одиночная смена»)');
   if (r.barista2 && r.barista2 === r.barista) return alert_('Бариста 1 и Бариста 2 — один и тот же человек.');
   if (markBad()) return alert_('Где-то вписано не число — такие поля подсвечены красным.');
   if (missing.length) return alert_('Заполните: ' + missing.join(', ') + '.');
@@ -884,8 +955,12 @@ recalc();
 if (tg) {
   tg.ready();
   tg.expand();
+  // Шапка и фон Телеграма — в цвет формы
+  const BG = '#eeefec';
   if (tg.isVersionAtLeast && tg.isVersionAtLeast('6.1')) {
-    try { tg.setHeaderColor('secondary_bg_color'); tg.setBackgroundColor('secondary_bg_color'); } catch (e) {}
+    try { tg.setBackgroundColor(BG); } catch (e) {}
+    try { tg.setHeaderColor(tg.isVersionAtLeast('6.9') ? BG : 'secondary_bg_color'); } catch (e) {}
+    try { if (tg.isVersionAtLeast('7.10')) tg.setBottomBarColor(BG); } catch (e) {}
   }
 }
 if (inTg && tg.MainButton) {
