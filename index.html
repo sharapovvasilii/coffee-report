@@ -171,6 +171,12 @@
   <button id="gateBtn" class="btn" type="button" hidden></button>
 </div>
 
+<!-- Переключатель только для владельца -->
+<div class="card seg" id="ownerTabs" hidden>
+  <button type="button" class="seg-btn" id="tabReport" aria-pressed="true">Отчёт</button>
+  <button type="button" class="seg-btn" id="tabBuy" aria-pressed="false">Закупка</button>
+</div>
+
 <main id="form">
 <div class="card edit-card" id="editBanner" hidden>
   <b>✏️ Режим исправления</b>
@@ -284,7 +290,7 @@
   <h2 class="sec">Нужно купить</h2>
   <div class="card">
     <div class="plist" id="needList"></div>
-    <p class="note" id="needEmpty" hidden>Всё куплено 🎉</p>
+    <p class="note" id="needEmpty" hidden>Всё куплено. Отличная работа!</p>
   </div>
 
   <h2 class="sec">Добавить товар</h2>
@@ -756,7 +762,26 @@ async function init() {
   applyLast(data.last);
   applyLearned(data.orderItems);
   offerEdit(data.editable);
+  if (data.role === 'owner') {
+    purchase = data.purchase || [];
+    renderPurchase();
+    $('ownerTabs').hidden = false;
+  }
 }
+
+// Владелец переключается между отчётом и списком закупки
+function setTab(tab) {
+  const buy = tab === 'buy';
+  $('tabReport').setAttribute('aria-pressed', buy ? 'false' : 'true');
+  $('tabBuy').setAttribute('aria-pressed', buy ? 'true' : 'false');
+  $('buyer').hidden = !buy;
+  showForm(!buy);
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  if (buy) refreshPurchase();
+  window.scrollTo(0, 0);
+}
+$('tabReport').addEventListener('click', () => setTab('report'));
+$('tabBuy').addEventListener('click', () => setTab('buy'));
 
 /* ---------- список закупки (для закупщика) ---------- */
 
