@@ -198,8 +198,19 @@
   .kv b { font-weight: 600; }
   .kv small { display: block; color: var(--hint); font-size: 11px; }
   .bad-row { color: var(--warn); }
-  .bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; margin: 6px 0 2px; }
+  .bars { display: flex; align-items: flex-end; gap: 2px; margin: 6px 0 2px; }
   .bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; opacity: .85; }
+  .bcol { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; cursor: pointer; }
+  .bcol .bar { flex: none; transition: opacity .15s; }
+  .bars.picked .bcol .bar { opacity: .4; }
+  .bars.picked .bcol.on .bar { opacity: 1; }
+  .bval { font-size: 10px; line-height: 1; text-align: center; white-space: nowrap; margin-bottom: 3px; color: #555; }
+  .bval.vert { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 9px; margin: 0 auto 3px; }
+  .bdates { display: flex; gap: 2px; }
+  .bdates span { flex: 1; min-width: 0; text-align: center; font-size: 10px; line-height: 1.25; color: var(--hint); }
+  .bsel { text-align: center; font-size: 13px; font-weight: 600; min-height: 18px; }
+  .bsel.tip { font-size: 12px; font-weight: 400; color: var(--hint); }
+  .day.hl { background: #fdeee8; border-radius: 10px; margin: 0 -8px; padding: 0 8px; border-top-color: transparent; }
   .bar.zero { background: var(--field); }
   .bars-axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--hint); }
   .day { border-top: 1px solid #f0f0ef; }
@@ -462,7 +473,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-01.3';
+const APP_VERSION = '2026-11-01.4';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -1572,20 +1583,53 @@ function renderRevenue(d) {
   const days = el('div', 'card');
   const perDay = {};
   d.shifts.forEach(s => { perDay[s.iso] = (perDay[s.iso] || 0) + s.rev; });
+  // Нажатие на столбик или на строку дня: подпись над графиком + подсветка обоих
+  const cols = {}, rows = {};
+  const sel = el('div', 'bsel tip', 'Нажмите на столбик, чтобы увидеть день');
+  let bars = null;
+  const pick = (iso, scroll) => {
+    const v = perDay[iso] || 0;
+    sel.classList.remove('tip');
+    sel.textContent = `${weekday(iso)} ${dmyFull(iso).slice(0, 5)} — ${v ? money(v) : 'нет отчёта'}`;
+    if (bars) bars.classList.add('picked');
+    Object.keys(cols).forEach(k => cols[k].classList.toggle('on', k === iso));
+    Object.keys(rows).forEach(k => rows[k].classList.toggle('hl', k === iso));
+    if (scroll && rows[iso]) rows[iso].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  };
   if (d.days > 1 && d.days <= 62) {
     const max = Math.max(1, ...Object.values(perDay));
-    const bars = el('div', 'bars');
+    const BAR_H = 90;
+    // Сколько подписывать: неделя — сумма и дата, до месяца — короткая сумма, больше — ничего
+    const full = d.days <= 7, short = !full && d.days <= 31;
+    const shortMoney = v => (v >= 1000 ? Math.round(v / 1000) + 'к' : String(Math.round(v)));
+    bars = el('div', 'bars');
+    const dates = el('div', 'bdates');
     for (let i = 0; i < d.days; i++) {
       const iso = isoAdd(d.from, i);
       const v = perDay[iso] || 0;
+      const col = el('div', 'bcol');
+      if (v && (full || short)) col.appendChild(el('div', 'bval' + (short ? ' vert' : ''), full ? fmt(v) : shortMoney(v)));
       const bar = el('div', 'bar' + (v ? '' : ' zero'));
-      bar.style.height = Math.max(2, Math.round(v / max * 100)) + '%';
-      bar.title = `${dmyFull(iso)}: ${money(v)}`;
-      bars.appendChild(bar);
+      bar.style.height = Math.max(2, Math.round(v / max * BAR_H)) + 'px';
+      col.appendChild(bar);
+      col.title = `${dmyFull(iso)}: ${money(v)}`;
+      col.addEventListener('click', () => pick(iso, true));
+      cols[iso] = col;
+      bars.appendChild(col);
+      if (full) {
+        const s = el('span');
+        s.append(weekday(iso), document.createElement('br'), dmyFull(iso).slice(0, 5));
+        dates.appendChild(s);
+      }
     }
-    const axis = el('div', 'bars-axis');
-    axis.append(el('span', null, dmyFull(d.from).slice(0, 5)), el('span', null, dmyFull(d.to).slice(0, 5)));
-    days.append(bars, axis);
+    days.append(sel, bars);
+    if (full) days.appendChild(dates);
+    else {
+      const axis = el('div', 'bars-axis');
+      axis.append(el('span', null, dmyFull(d.from).slice(0, 5)), el('span', null, dmyFull(d.to).slice(0, 5)));
+      days.appendChild(axis);
+    }
   }
   const byDay = {};
   d.shifts.forEach(s => { (byDay[s.iso] = byDay[s.iso] || []).push(s); });
@@ -1602,7 +1646,8 @@ function renderRevenue(d) {
       detail.appendChild(el('div', null,
         `${s.names.join(' + ')}: нал ${money(s.cash)} · безнал ${money(s.card)} · расходы ${money(s.exp)} · ${cashOk}`));
     });
-    row.addEventListener('click', () => { detail.hidden = !detail.hidden; });
+    row.addEventListener('click', () => { detail.hidden = !detail.hidden; if (cols[iso]) pick(iso, false); });
+    rows[iso] = wrap;
     wrap.append(row, detail);
     days.appendChild(wrap);
   });
