@@ -206,6 +206,7 @@
   .day:first-child { border-top: 0; }
   .day-detail { font-size: 13px; color: #555; padding: 0 0 8px; }
   .loading-note { text-align: center; color: var(--hint); padding: 30px 0; }
+  .ver-note { text-align: center; color: var(--hint); font-size: 12px; padding: 24px 0 8px; }
 
   /* Экраны загрузки и доступа — большая белая карточка на весь экран */
   .gate {
@@ -411,6 +412,7 @@
     </div>
   </div>
   <div id="revBody"></div>
+  <div class="ver-note" id="verNote"></div>
 </main>
 
 <script>
@@ -458,6 +460,9 @@ const STOCK = [
 const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', 'Сливки', 'Стаканы', 'Крышки', 'Трубочки', 'Салфетки'];
 
 /* ============================================= */
+
+// Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
+const APP_VERSION = '2026-11-01.3';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -552,9 +557,21 @@ function fillBaristas(sel, first, list) {
   else if (keep && keep !== '__other') { sel.add(new Option(keep, keep), sel.options[sel.options.length - 1]); sel.value = keep; }
 }
 
+// Товар переименовали на листе «Товары»: ищем значение и под старым названием
+function byName(obj, name) {
+  if (obj[name] != null && obj[name] !== '') return obj[name];
+  const ren = (config && config.renames) || {};
+  for (const oldName in ren) {
+    if (ren[oldName] === name && obj[oldName] != null && obj[oldName] !== '') return obj[oldName];
+  }
+  return obj[name];
+}
+
 function renderStock(list) {
   const old = {};
   stockEls.forEach(s => { old[s.name] = { value: s.el.value, hint: s.hint.textContent }; });
+  const ren = (config && config.renames) || {};
+  for (const oldName in ren) { if (old[oldName] && !old[ren[oldName]]) old[ren[oldName]] = old[oldName]; }
   stockEls.length = 0;
   const box = $('stock');
   box.textContent = '';
@@ -578,7 +595,8 @@ function renderStock(list) {
 
 function applyConfig(cfg) {
   if (!cfg || !Array.isArray(cfg.stock)) return;
-  const next = { stock: cfg.stock, baristas: Array.isArray(cfg.baristas) ? cfg.baristas : config.baristas };
+  const next = { stock: cfg.stock, baristas: Array.isArray(cfg.baristas) ? cfg.baristas : config.baristas,
+    renames: cfg.renames || {} };
   // Списки не изменились — не перерисовываем, чтобы не сбить ввод
   if (stockEls.length && JSON.stringify(next) === JSON.stringify(config)) return;
   config = next;
@@ -717,7 +735,7 @@ function restoreDraft() {
     if (k === 'date' && d.savedOn !== todayISO()) continue;
     fields[k].value = d.fields[k];
   }
-  stockEls.forEach(s => { if (d.stock && d.stock[s.name] != null) s.el.value = d.stock[s.name]; });
+  stockEls.forEach(s => { const v = d.stock ? byName(d.stock, s.name) : null; if (v != null) s.el.value = v; });
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
   draftChips = new Set(d.chips || []);
   document.querySelectorAll('#chips .chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
@@ -927,8 +945,9 @@ function showApp(data, fresh) {
   }
   if (firstShow) setupTabs(data.role);
   shownRole = data.role;
-  // Владельцу — выручку за неделю заранее, в фоне: к открытию вкладки цифры уже готовы
-  if (fresh && data.role === 'owner' && !revLoaded) pickPreset('week', true);
+  if (fresh) $('verNote').textContent = `Версия приложения ${APP_VERSION} · сервера ${data.ver || 'старая'}`;
+  // Владельцу — выручку за все периоды заранее, в фоне: к открытию вкладки цифры уже готовы
+  if (fresh && data.role === 'owner' && !revLoaded) preloadRevenue();
 }
 
 async function init() {
@@ -1426,14 +1445,51 @@ function revCachePut(from, to, data) {
   storage(ls => ls.setItem(REV_KEY, JSON.stringify(c)));
 }
 
+// Все готовые периоды одним запросом: сервер читает таблицу один раз
+let revBatch = null;        // идёт загрузка всех периодов
+let revBatchKeys = [];
+
+async function preloadRevenue() {
+  revLoaded = true;
+  const ranges = [];
+  PRESETS.forEach(([id]) => {
+    if (id === 'custom') return;
+    const key = presetRange(id).join(':');
+    if (!ranges.includes(key)) ranges.push(key);
+  });
+  revBatchKeys = ranges.map(k => k.replace(':', '|'));
+  revBatch = (async () => {
+    try {
+      const res = await fetch(`${API_URL}?action=revenueMany&ranges=${ranges.join(',')}&initData=${encodeURIComponent(initData)}`);
+      const data = await res.json();
+      if (!data.ok) return;
+      (data.items || []).forEach(it => {
+        if (it.data) revCachePut(it.from, it.to, Object.assign({ ok: true }, it.data));
+      });
+    } catch (e) {} finally { revBatch = null; }
+  })();
+  // На вкладке сразу — неделя (из памяти телефона, если есть)
+  pickPreset('week', true);
+}
+
 async function loadRevenue(from, to) {
   revLoaded = true;
   const seq = ++revSeq;
   $('revRange').textContent = rangeLabel(from, to);
-  const cached = revCacheGet(from, to);
-  let shown = cached ? JSON.stringify(cached) : '';
+  let cached = revCacheGet(from, to);
   if (cached) renderRevenue(cached);
   else $('revBody').replaceChildren(el('div', 'loading-note', 'Считаю…'));
+  // Этот период уже грузится вместе с остальными — ждём его, а не просим отдельно
+  if (revBatch && revBatchKeys.includes(from + '|' + to)) {
+    await revBatch;
+    if (seq !== revSeq) return;
+    const got = revCacheGet(from, to);
+    if (got) {
+      if (JSON.stringify(got) !== JSON.stringify(cached)) renderRevenue(got);
+      return;
+    }
+  }
+  let shown = cached ? JSON.stringify(cached) : '';
   try {
     const res = await fetch(`${API_URL}?action=revenue&from=${from}&to=${to}&initData=${encodeURIComponent(initData)}`);
     const data = await res.json();
@@ -1713,7 +1769,7 @@ function applyLast(last) {
     if (fields.cashStart.value === '') { fields.cashStart.value = last.cashEnd; recalc(); }
   }
   stockEls.forEach(s => {
-    const v = last.stock && last.stock[s.name];
+    const v = last.stock && byName(last.stock, s.name);
     if (v != null && v !== '') s.hint.textContent = `было ${v}`;
   });
 }
