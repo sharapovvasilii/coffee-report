@@ -578,7 +578,10 @@ function renderStock(list) {
 
 function applyConfig(cfg) {
   if (!cfg || !Array.isArray(cfg.stock)) return;
-  config = { stock: cfg.stock, baristas: Array.isArray(cfg.baristas) ? cfg.baristas : config.baristas };
+  const next = { stock: cfg.stock, baristas: Array.isArray(cfg.baristas) ? cfg.baristas : config.baristas };
+  // Списки не изменились — не перерисовываем, чтобы не сбить ввод
+  if (stockEls.length && JSON.stringify(next) === JSON.stringify(config)) return;
+  config = next;
   storage(ls => ls.setItem(CONFIG_KEY, JSON.stringify(config)));
   renderStock(config.stock);
   fillBaristas($('barista'), 'Имя', config.baristas);
@@ -873,34 +876,83 @@ function gate(state, detail) {
   }
 }
 
-async function init() {
-  if (!inTg || !apiReady) return;
-  gate('loading');
-  let data;
-  try {
-    const res = await fetch(API_URL + '?action=init&initData=' + encodeURIComponent(initData));
-    data = await res.json();
-  } catch (e) {
-    return gate('error');
+/* Быстрое открытие: телефон помнит экран с прошлого раза и показывает его сразу,
+   а сервер в это время проверяет доступ и присылает свежие данные.
+   Отправка отчёта всё равно проверяется сервером. */
+
+const INIT_KEY = 'shift-report-init-v1';
+let shownRole = null;          // какой экран уже показан: 'barista', 'owner', 'buyer' или null
+let purchaseTouched = false;   // в списке закупки уже что-то нажали — не затираем старым ответом
+
+function myTgId() {
+  const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  return u && u.id ? String(u.id) : '';
+}
+
+function saveInitCache(data) {
+  storage(ls => ls.setItem(INIT_KEY, JSON.stringify({
+    uid: myTgId(), role: data.role, name: data.name, config: data.config,
+    orderItems: data.orderItems, purchase: data.purchase, sections: data.sections, stock: data.stock,
+  })));
+}
+
+function loadInitCache() {
+  const c = storage(ls => JSON.parse(ls.getItem(INIT_KEY) || 'null'));
+  return c && c.uid && c.uid === myTgId() && c.role ? c : null;
+}
+
+function showApp(data, fresh) {
+  if (data.role === 'buyer') {
+    $('tabs').hidden = true;
+    if (!(fresh && purchaseTouched)) showBuyer(data.purchase, data.sections, data.stock);
+    shownRole = 'buyer';
+    return;
   }
-  if (!data.ok) return gate('error', data.error);
-  if (data.access !== 'разрешён') return gate(data.access);
-  if (data.role === 'buyer') return showBuyer(data.purchase, data.sections, data.stock);
   $('gate').hidden = true;
-  showForm(true);
+  const firstShow = shownRole !== data.role;
+  if (firstShow) showForm(true);
   applyConfig(data.config);
   applyMyName(data.name);
-  applyLast(data.last);
   applyLearned(data.orderItems);
-  offerEdit(data.editable);
-  setOrderedToday(data.orderedToday);
-  if (data.role === 'owner') {
+  if (fresh) {   // это меняется часто — берём только свежее с сервера
+    applyLast(data.last);
+    offerEdit(data.editable);
+    setOrderedToday(data.orderedToday);
+  }
+  if (data.role === 'owner' && !(fresh && purchaseTouched)) {
     purchase = data.purchase || [];
     sections = data.sections || [];
     renderPurchase();
     renderStockView(data.stock);
   }
-  setupTabs(data.role);
+  if (firstShow) setupTabs(data.role);
+  shownRole = data.role;
+}
+
+async function init() {
+  if (!inTg || !apiReady) return;
+  const cached = shownRole ? null : loadInitCache();
+  if (cached) showApp(cached, false);
+  else if (!shownRole) gate('loading');
+  let data;
+  try {
+    const res = await fetch(API_URL + '?action=init&initData=' + encodeURIComponent(initData));
+    data = await res.json();
+  } catch (e) {
+    // Форма уже на экране — даём заполнять дальше, отправить можно будет, когда появится связь
+    if (shownRole) return showBanner('Нет связи с таблицей — списки могут быть не самые свежие.');
+    return gate('error');
+  }
+  if (data.ok) showBanner('');
+  if (!data.ok || data.access !== 'разрешён') {
+    if (data.ok) storage(ls => ls.removeItem(INIT_KEY));   // доступ закрыли — забываем экран
+    shownRole = null;
+    $('tabs').hidden = true;
+    $('buyer').hidden = true;
+    return data.ok ? gate(data.access) : gate('error', data.error);
+  }
+  saveInitCache(data);
+  showApp(data, true);
 }
 
 /* ---------- вкладки: бариста — Отчёт/Заявка, владелец — ещё Закупка и Выручка ---------- */
@@ -1144,6 +1196,7 @@ function saveLayout() {
 // Отправляем действие на сервер; если не вышло — возвращаем как было
 async function purchaseOp(body, rollback) {
   purchaseBusy++;
+  purchaseTouched = true;
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
