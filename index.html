@@ -927,6 +927,8 @@ function showApp(data, fresh) {
   }
   if (firstShow) setupTabs(data.role);
   shownRole = data.role;
+  // Владельцу — выручку за неделю заранее, в фоне: к открытию вкладки цифры уже готовы
+  if (fresh && data.role === 'owner' && !revLoaded) pickPreset('week', true);
 }
 
 async function init() {
@@ -1388,11 +1390,11 @@ function buildPresets() {
   });
 }
 
-function pickPreset(p) {
+function pickPreset(p, quiet) {
   $('revPresets').querySelectorAll('.chip').forEach(c => {
     const on = c.dataset.p === p;
     c.setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (on) c.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+    if (on && !quiet) c.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
   });
   $('revCustom').hidden = p !== 'custom';
   if (p === 'custom') {
@@ -1404,20 +1406,46 @@ function pickPreset(p) {
   loadRevenue(f, t);
 }
 
+// Телефон помнит уже открытые периоды: показываем их сразу, а свежие цифры подтягиваем в фоне
+const REV_KEY = 'shift-report-rev-v1';
+const REV_KEEP = 12;   // сколько периодов помнить
+
+function revCacheAll() {
+  const c = storage(ls => JSON.parse(ls.getItem(REV_KEY) || 'null'));
+  return c && c.uid === myTgId() && c.items ? c : { uid: myTgId(), items: {} };
+}
+function revCacheGet(from, to) {
+  const hit = revCacheAll().items[from + '|' + to];
+  return hit ? hit.data : null;
+}
+function revCachePut(from, to, data) {
+  const c = revCacheAll();
+  c.items[from + '|' + to] = { at: Date.now(), data };
+  const keys = Object.keys(c.items).sort((a, b) => c.items[b].at - c.items[a].at);
+  keys.slice(REV_KEEP).forEach(k => delete c.items[k]);
+  storage(ls => ls.setItem(REV_KEY, JSON.stringify(c)));
+}
+
 async function loadRevenue(from, to) {
   revLoaded = true;
   const seq = ++revSeq;
   $('revRange').textContent = rangeLabel(from, to);
-  $('revBody').replaceChildren(el('div', 'loading-note', 'Считаю…'));
+  const cached = revCacheGet(from, to);
+  let shown = cached ? JSON.stringify(cached) : '';
+  if (cached) renderRevenue(cached);
+  else $('revBody').replaceChildren(el('div', 'loading-note', 'Считаю…'));
   try {
     const res = await fetch(`${API_URL}?action=revenue&from=${from}&to=${to}&initData=${encodeURIComponent(initData)}`);
     const data = await res.json();
     if (seq !== revSeq) return;   // уже выбрали другой период
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
     $('revRange').textContent = rangeLabel(data.from, data.to);
-    renderRevenue(data);
+    revCachePut(from, to, data);
+    if (JSON.stringify(data) !== shown) renderRevenue(data);   // цифры не поменялись — не перерисовываем
   } catch (e) {
-    if (seq === revSeq) $('revBody').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+    if (seq !== revSeq) return;
+    if (cached) return;   // старые цифры уже на экране — оставляем их
+    $('revBody').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
   }
 }
 
