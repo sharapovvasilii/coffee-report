@@ -148,6 +148,31 @@
   /* Вкладки: число столбцов задаётся из кода */
   .tabs { margin-bottom: 4px; }
   .tabs .seg-btn { padding: 11px 4px; font-size: 14px; }
+  /* Много вкладок — одна строка, листается вбок */
+  .tabs.scroll { display: flex; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs.scroll::-webkit-scrollbar { display: none; }
+  .tabs.scroll .seg-btn { flex: none; padding: 11px 16px; white-space: nowrap; }
+
+  /* Зарплата */
+  .pay-person { padding-bottom: 6px; }
+  .pay-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 4px 0 6px; }
+  .pay-head b { font-size: 17px; }
+  .pay-head small { display: block; color: var(--hint); font-size: 12px; font-weight: 400; }
+  .pay-unit { border-top: 1px solid #f0f0ef; padding: 8px 0; }
+  .pay-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; }
+  .pay-line small { display: block; color: var(--hint); font-size: 12px; }
+  .pay-act { text-align: right; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .pay-btn { border: 0; border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 600;
+    background: var(--accent); color: #fff; white-space: nowrap; }
+  .pay-btn:disabled { opacity: .5; }
+  .pay-done { color: var(--ok); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pay-extra { color: var(--warn); font-size: 12px; font-weight: 600; }
+  .pay-undo { background: none; border: 0; padding: 2px 0; font: inherit; font-size: 12px; color: var(--hint); text-decoration: underline; }
+  .pay-shifts { font-size: 13px; color: #555; padding: 6px 0 0; }
+  .pay-shifts div { padding: 2px 0; }
+  .pay-shifts i { color: var(--hint); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; color: var(--accent); background: #fdeee8;
+    border-radius: 6px; padding: 1px 6px; margin-left: 4px; vertical-align: middle; }
   .today-note { margin: 2px 0 8px; color: var(--warn); font-size: 13px; }
 
   /* Отделы списка закупки */
@@ -254,6 +279,7 @@
   <button type="button" class="seg-btn" data-tab="order" hidden>Заявка</button>
   <button type="button" class="seg-btn" data-tab="buy" hidden>Закупка</button>
   <button type="button" class="seg-btn" data-tab="rev" hidden>Выручка</button>
+  <button type="button" class="seg-btn" data-tab="pay" hidden>Зарплата</button>
 </div>
 
 <main id="form">
@@ -410,6 +436,22 @@
   <button id="sendOrderBtn" class="btn" type="button" hidden>Отправить заявку</button>
 </main>
 
+<!-- Зарплата (только владелец) -->
+<main id="payScreen" hidden>
+  <header>
+    <h1>Зарплата</h1>
+    <div class="sub" id="payRange"></div>
+  </header>
+  <div class="chips presets" id="payPresets"></div>
+  <div class="card" id="payCustom" hidden>
+    <div class="range-row">
+      <span>С</span><input type="date" id="payFrom" aria-label="С какого дня">
+      <span>по</span><input type="date" id="payTo" aria-label="По какой день">
+    </div>
+  </div>
+  <div id="payBody"></div>
+</main>
+
 <!-- Выручка (только владелец) -->
 <main id="revScreen" hidden>
   <header>
@@ -474,7 +516,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-01.5';
+const APP_VERSION = '2026-11-01.6';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -844,6 +886,7 @@ function showScreen(name) {
   $('orderScreen').hidden = name !== 'order';
   $('buyer').hidden = name !== 'buyer';
   $('revScreen').hidden = name !== 'revenue';
+  $('payScreen').hidden = name !== 'salary';
   updateMainButton();
   // В списке закупки товары перетаскивают пальцем — отключаем «смахнуть вниз, чтобы закрыть»
   try {
@@ -960,6 +1003,7 @@ function showApp(data, fresh) {
   if (fresh) $('verNote').textContent = `Версия приложения ${APP_VERSION} · сервера ${data.ver || 'старая'}`;
   // Владельцу — выручку за все периоды заранее, в фоне: к открытию вкладки цифры уже готовы
   if (fresh && data.role === 'owner' && !revLoaded) preloadRevenue();
+  if (fresh && data.role === 'owner' && !payLoaded) pickPayPreset('week', true);   // зарплату — тоже заранее
 }
 
 async function init() {
@@ -990,22 +1034,31 @@ async function init() {
 
 /* ---------- вкладки: бариста — Отчёт/Заявка, владелец — ещё Закупка и Выручка ---------- */
 
-const TAB_SCREENS = { report: 'form', order: 'order', buy: 'buyer', rev: 'revenue' };
+const TAB_SCREENS = { report: 'form', order: 'order', buy: 'buyer', rev: 'revenue', pay: 'salary' };
 
 function setupTabs(role) {
-  const show = role === 'owner' ? ['report', 'order', 'buy', 'rev'] : ['report', 'order'];
+  const show = role === 'owner' ? ['report', 'order', 'buy', 'rev', 'pay'] : ['report', 'order'];
   const bar = $('tabs');
   bar.querySelectorAll('.seg-btn').forEach(b => {
     b.hidden = !show.includes(b.dataset.tab);
     b.onclick = () => setTab(b.dataset.tab);
   });
-  bar.style.gridTemplateColumns = `repeat(${show.length}, 1fr)`;
+  // Больше четырёх вкладок не помещается — листаются вбок
+  const scroll = show.length > 4;
+  bar.classList.toggle('scroll', scroll);
+  bar.style.gridTemplateColumns = scroll ? '' : `repeat(${show.length}, 1fr)`;
   bar.hidden = false;
   markTab('report');
 }
 
 function markTab(tab) {
-  $('tabs').querySelectorAll('.seg-btn').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === tab ? 'true' : 'false'));
+  $('tabs').querySelectorAll('.seg-btn').forEach(b => {
+    const on = b.dataset.tab === tab;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on && $('tabs').classList.contains('scroll')) {
+      try { b.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    }
+  });
 }
 
 function setTab(tab) {
@@ -1015,6 +1068,7 @@ function setTab(tab) {
   if (tab === 'order') buildOrderChips();
   if (tab === 'buy') refreshPurchase();
   if (tab === 'rev' && !revLoaded) pickPreset('week');
+  if (tab === 'pay' && !payLoaded) pickPayPreset('week');
   window.scrollTo(0, 0);
 }
 
@@ -1672,6 +1726,219 @@ function loadCustomRange() {
 }
 $('revFrom').addEventListener('change', loadCustomRange);
 $('revTo').addEventListener('change', loadCustomRange);
+
+
+/* ---------- зарплата (только владелец) ---------- */
+
+const PAY_PRESETS = [
+  ['week', 'Эта неделя'], ['lastweek', 'Прошлая неделя'], ['month', 'Этот месяц'],
+  ['lastmonth', 'Прошлый месяц'], ['custom', 'Свой период'],
+];
+const PAY_CACHE = 'shift-report-pay-v1';
+let payLoaded = false;
+let paySeq = 0;
+let payCur = null;          // { from, to } — какой период на экране
+let payBusy = false;
+
+function payCacheGet(from, to) {
+  const c = storage(ls => JSON.parse(ls.getItem(PAY_CACHE) || 'null'));
+  return c && c.uid === myTgId() && c.items && c.items[from + '|' + to] ? c.items[from + '|' + to] : null;
+}
+function payCachePut(from, to, data) {
+  const c = storage(ls => JSON.parse(ls.getItem(PAY_CACHE) || 'null'));
+  const all = c && c.uid === myTgId() && c.items ? c : { uid: myTgId(), items: {} };
+  all.items[from + '|' + to] = data;
+  const keys = Object.keys(all.items);
+  keys.slice(0, Math.max(0, keys.length - 8)).forEach(k => delete all.items[k]);
+  storage(ls => ls.setItem(PAY_CACHE, JSON.stringify(all)));
+}
+
+function buildPayPresets() {
+  const box = $('payPresets');
+  box.textContent = '';
+  PAY_PRESETS.forEach(([id, label]) => {
+    const b = el('button', 'chip', label);
+    b.type = 'button'; b.dataset.p = id; b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => pickPayPreset(id));
+    box.appendChild(b);
+  });
+}
+
+function pickPayPreset(p, quiet) {
+  $('payPresets').querySelectorAll('.chip').forEach(c => {
+    const on = c.dataset.p === p;
+    c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on && !quiet) c.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  });
+  $('payCustom').hidden = p !== 'custom';
+  if (p === 'custom') {
+    if (!$('payFrom').value) { const [f, t] = presetRange('month'); $('payFrom').value = f; $('payTo').value = t; }
+    loadPayCustom();
+    return;
+  }
+  const [f, t] = presetRange(p);
+  loadPay(f, t);
+}
+
+let payCustomTimer;
+function loadPayCustom() {
+  clearTimeout(payCustomTimer);
+  payCustomTimer = setTimeout(() => {
+    const f = $('payFrom').value, t = $('payTo').value;
+    if (f && t) loadPay(f <= t ? f : t, f <= t ? t : f);
+  }, 400);
+}
+
+async function loadPay(from, to) {
+  payLoaded = true;
+  const seq = ++paySeq;
+  payCur = { from, to };
+  $('payRange').textContent = rangeLabel(from, to);
+  const cached = payCacheGet(from, to);
+  if (cached) renderPay(cached);
+  else $('payBody').replaceChildren(el('div', 'loading-note', 'Считаю…'));
+  try {
+    const res = await fetch(`${API_URL}?action=salary&from=${from}&to=${to}&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (seq !== paySeq) return;
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!Array.isArray(data.people)) throw new Error('на сервере старый Code.gs — обновите его в Apps Script.');
+    payCachePut(from, to, data);
+    if (JSON.stringify(data) !== JSON.stringify(cached)) renderPay(data);
+  } catch (e) {
+    if (seq !== paySeq || cached) return;
+    $('payBody').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+  }
+}
+
+// «Выплачено» или «Отменить выплату»
+async function payAction(action, person, unit, label) {
+  if (payBusy || !payCur) return;
+  const msg = action === 'payout'
+    ? `Отметить, что ${person.name} выплачено ${fmt(unit.due)} ₽ (${label})?`
+    : `Отменить отметку о выплате: ${person.name}, ${label}?`;
+  if (!(await confirm_(msg))) return;
+  if (!inTg || !apiReady) return alert_('Откройте приложение через бота в Телеграме.');
+  payBusy = true;
+  document.querySelectorAll('.pay-btn, .pay-undo').forEach(b => { b.disabled = true; });
+  const { from, to } = payCur;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ initData, action, name: person.name, key: unit.key, from, to }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    payCachePut(from, to, data);
+    if (payCur && payCur.from === from && payCur.to === to) renderPay(data);
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+  } catch (e) {
+    document.querySelectorAll('.pay-btn, .pay-undo').forEach(b => { b.disabled = false; });
+    await alert_('Не получилось: ' + e.message);
+  } finally {
+    payBusy = false;
+  }
+}
+
+function renderPay(d) {
+  const money = n => fmt(n) + ' ₽';
+  const out = [];
+
+  const sum = el('div', 'card');
+  sum.appendChild(el('div', 'note', 'К выплате'));
+  sum.appendChild(el('div', 'big', money(d.due)));
+  sum.appendChild(kv('Начислено за период', money(d.total)));
+  sum.appendChild(kv('Уже выплачено', money(d.paid)));
+  out.push(sum);
+
+  if (!d.people.length) {
+    out.push(el('div', 'loading-note', 'За этот период смен нет.'));
+    $('payBody').replaceChildren(...out);
+    return;
+  }
+
+  out.push(el('h2', 'sec', 'По сотрудникам'));
+  d.people.forEach(p => {
+    const card = el('div', 'card pay-person');
+    const head = el('div', 'pay-head');
+    const left = el('div');
+    const nm = el('b', null, p.name);
+    if (p.daily) nm.appendChild(el('span', 'tag', 'ежедневно'));
+    left.appendChild(nm);
+    const nShifts = p.units.reduce((a, u) => a + u.shifts.length, 0);
+    left.appendChild(el('small', null, `${nShifts} ${pluralRu(nShifts, 'смена', 'смены', 'смен')} · начислено ${money(p.total)}`));
+    const right = el('div');
+    right.style.textAlign = 'right';
+    right.appendChild(el('b', null, p.due > 0 ? money(p.due) : '✓'));
+    right.appendChild(el('small', null, p.due > 0 ? 'к выплате' : 'всё выплачено'));
+    head.append(left, right);
+    card.appendChild(head);
+
+    p.units.forEach(u => {
+      const isWeek = u.key.indexOf('неделя:') === 0;
+      const label = isWeek
+        ? `неделя ${dmyFull(u.from).slice(0, 5)} – ${dmyFull(u.to).slice(0, 5)}`
+        : `${weekday(u.from)} ${dmyFull(u.from).slice(0, 5)}`;
+      const box = el('div', 'pay-unit');
+      const line = el('div', 'pay-line');
+      const info = el('div');
+      info.appendChild(el('div', null, `${label} · ${money(u.total)}`));
+      const parts = [`ставки ${fmt(u.base)}`];
+      if (u.gis) parts.push(`2ГИС ${fmt(u.gis)}`);
+      if (u.senior) parts.push(`стаж ${fmt(u.senior)}`);
+      info.appendChild(el('small', null, parts.join(' + ') + (isWeek ? ` · ${u.shifts.length} ${pluralRu(u.shifts.length, 'смена', 'смены', 'смен')}` : '')));
+
+      const act = el('div', 'pay-act');
+      if (u.due > 0) {
+        if (u.paid > 0) act.appendChild(el('div', 'pay-extra', `доплата +${fmt(u.due)}`));
+        const b = el('button', 'pay-btn', `${u.paid > 0 ? 'Доплатить' : 'Выплатить'} ${fmt(u.due)} ₽`);
+        b.type = 'button';
+        b.addEventListener('click', e => { e.stopPropagation(); payAction('payout', p, u, label); });
+        act.appendChild(b);
+      } else {
+        act.appendChild(el('div', 'pay-done', u.due < 0 ? `переплата ${fmt(-u.due)} ₽` : '✓ выплачено'));
+      }
+      if (u.paid > 0) {
+        const undo = el('button', 'pay-undo', 'отменить');
+        undo.type = 'button';
+        undo.addEventListener('click', e => { e.stopPropagation(); payAction('payoutUndo', p, u, label); });
+        act.appendChild(undo);
+      }
+      line.append(info, act);
+
+      // Нажал на строку — смены по дням
+      const det = el('div', 'pay-shifts');
+      det.hidden = true;
+      u.shifts.slice().sort((a, b) => (a.iso < b.iso ? -1 : 1)).forEach(s => {
+        const bits = [`выручка ${fmt(s.rev)}`, s.two ? 'вдвоём' : 'один', `ставка ${fmt(s.base)}`];
+        if (s.gis) bits.push(`2ГИС ${fmt(s.gis)}`);
+        if (s.senior) bits.push(`стаж ${fmt(s.senior)}`);
+        const row = el('div', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)}: ${fmt(s.total)} ₽ — ${bits.join(', ')}`);
+        if (s.note) { row.appendChild(document.createElement('br')); row.appendChild(el('i', null, s.note)); }
+        det.appendChild(row);
+      });
+      line.addEventListener('click', () => { det.hidden = !det.hidden; });
+      box.append(line, det);
+      card.appendChild(box);
+    });
+    out.push(card);
+  });
+  out.push(el('p', 'note', 'Нажмите на неделю или день, чтобы увидеть смены. Отметки «Выплачено» сохраняются на листе «Выплаты».'));
+  $('payBody').replaceChildren(...out);
+}
+
+function pluralRu(n, one, few, many) {
+  const a = n % 100, b = n % 10;
+  if (a >= 11 && a <= 14) return many;
+  if (b === 1) return one;
+  if (b >= 2 && b <= 4) return few;
+  return many;
+}
+
+buildPayPresets();
+$('payFrom').addEventListener('change', loadPayCustom);
+$('payTo').addEventListener('change', loadPayCustom);
 
 /* ---------- исправление отправленного отчёта ---------- */
 
