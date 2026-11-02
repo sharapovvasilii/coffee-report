@@ -433,14 +433,14 @@
 
   <div class="sec-row">
     <h2 class="sec">Нужно купить</h2>
-    <button type="button" class="link" id="editSections">Изменить отделы</button>
+    <button type="button" class="link" id="editSections">Изменить магазины</button>
   </div>
-  <p class="note drag-hint" id="dragHint">Зажмите товар, чтобы перетащить его в другой отдел или выше-ниже</p>
+  <p class="note drag-hint" id="dragHint">Нажмите на товар — выбрать магазин или отметить «Куплено». Нажмите на название магазина — адрес и 2ГИС.</p>
   <div class="card" id="needEmpty" hidden><p class="note">Всё куплено. Отличная работа!</p></div>
   <div id="sections"></div>
 
   <div class="card add-row" id="addSectionRow" hidden>
-    <input id="newSection" placeholder="Новый отдел, например «Метро»" autocomplete="off" maxlength="40">
+    <input id="newSection" placeholder="Новый магазин, например «Метро»" autocomplete="off" maxlength="40">
     <button type="button" class="btn btn-small" id="addSection">Добавить</button>
   </div>
 
@@ -560,7 +560,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-02.1';
+const APP_VERSION = '2026-11-02.2';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -1593,8 +1593,8 @@ function renderPurchase() {
   $('boughtList').replaceChildren(...bought.map(itemButton));
   $('boughtBlock').hidden = !bought.length;
   $('needEmpty').hidden = need.length > 0 || editingSections;
-  $('dragHint').hidden = !need.length || !window.Sortable || editingSections;
-  $('editSections').textContent = editingSections ? 'Готово' : 'Изменить отделы';
+  $('dragHint').hidden = !need.length || editingSections;
+  $('editSections').textContent = editingSections ? 'Готово' : 'Изменить магазины';
   $('addSectionRow').hidden = !editingSections;
   $('buyerInfo').textContent = need.length
     ? `Нужно купить: ${need.length} ${pl(need.length, 'позиция', 'позиции', 'позиций')}`
@@ -1618,11 +1618,12 @@ function renderPurchase() {
     const tools = el('div', 'psec-tools');
     const saved = !String(s.id).startsWith('new-');
     tools.append(
-      toolBtn('↑', 'Поднять отдел', i === 0 || !saved, () => moveSection(s.id, -1)),
-      toolBtn('↓', 'Опустить отдел', i === sections.length - 1 || !saved, () => moveSection(s.id, 1)),
-      toolBtn('✎', 'Переименовать отдел', !saved, () => renameSection(s, title)),
+      toolBtn('↑', 'Поднять магазин', i === 0 || !saved, () => moveSection(s.id, -1)),
+      toolBtn('↓', 'Опустить магазин', i === sections.length - 1 || !saved, () => moveSection(s.id, 1)),
     );
-    if (s.id !== 'other') tools.append(toolBtn('×', 'Удалить отдел', !saved, () => deleteSection(s)));
+    // «Магазин не выбран» — не магазин: его не переименовать и не удалить
+    if (s.id !== 'other') tools.append(toolBtn('✎', 'Переименовать магазин', !saved, () => renameSection(s, title)),
+      toolBtn('×', 'Удалить магазин', !saved, () => deleteSection(s)));
     head.append(title, el('div', 'psec-count', items.length ? String(items.length) : ''), tools);
     const list = el('div', 'plist');
     list.dataset.sec = s.id;
@@ -1788,7 +1789,7 @@ function renameSection(s, title) {
 }
 
 async function deleteSection(s) {
-  if (!(await confirm_(`Удалить отдел «${s.name}»? Его товары бот разложит по другим отделам.`))) return;
+  if (!(await confirm_(`Удалить магазин «${s.name}»? У товаров этот магазин уберётся, адрес с листа «Магазины» тоже.`))) return;
   const before = sections.slice();
   sections = sections.filter(x => x !== s);
   renderPurchase();
@@ -1798,8 +1799,8 @@ async function deleteSection(s) {
 function addSection() {
   const input = $('newSection');
   const name = input.value.trim();
-  if (name.length < 2) return alert_('Напишите название отдела.');
-  if (sections.some(s => s.name.toLowerCase() === name.toLowerCase())) return alert_('Такой отдел уже есть.');
+  if (name.length < 2) return alert_('Напишите название магазина.');
+  if (sections.some(s => s.name.toLowerCase() === name.toLowerCase())) return alert_('Такой магазин уже есть.');
   input.value = '';
   const before = sections.slice();
   const i = sections.findIndex(s => s.id === 'other');
