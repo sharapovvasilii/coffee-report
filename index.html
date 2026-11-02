@@ -560,7 +560,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-02.2';
+const APP_VERSION = '2026-11-02.3';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -1510,6 +1510,58 @@ function storeCard(s, reopen, onRemove) {
   return card;
 }
 
+// Нажали «Магазин не выбран»: новый магазин — название, адрес, телефон, часы и какие товары там купить
+function openNewStore(items) {
+  haptic('light');
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, 'Новый магазин'));
+  body.appendChild(el('div', 'grp', 'Появится в списке закупки отдельным блоком'));
+  const field = (label, ph, max) => {
+    const i = el('input', 'full');
+    i.placeholder = ph; i.maxLength = max;
+    body.append(el('div', 'note', label), i);
+    return i;
+  };
+  const name = field('Название', 'Например, «Метро»', 60);
+  const addr = field('Адрес', 'Улица, дом', 200);
+  const phone = field('Телефон', 'Можно не писать', 40);
+  phone.inputMode = 'tel';
+  const hours = field('Часы работы', 'Например, 9:00–21:00', 60);
+  const picked = new Set();
+  if (items.length) {
+    body.appendChild(el('div', 'note', 'Что покупать в этом магазине — отметьте'));
+    const box = el('div', 'chips');
+    items.forEach(x => {
+      const b = el('button', 'chip', x.name);
+      b.type = 'button'; b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => {
+        const on = !picked.has(x.name);
+        on ? picked.add(x.name) : picked.delete(x.name);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        haptic('select');
+      });
+      box.appendChild(b);
+    });
+    body.appendChild(box);
+  }
+  const save = el('button', 'btn', 'Сохранить магазин');
+  save.type = 'button';
+  save.addEventListener('click', async () => {
+    const n = name.value.trim();
+    if (n.length < 2) return alert_('Напишите название магазина.');
+    closeItem();
+    await purchaseOp({ op: 'storeCreate', name: n, address: addr.value.trim(), phone: phone.value.trim(),
+      hours: hours.value.trim(), items: [...picked] });
+  });
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.append(save, close);
+  $('itemSheet').hidden = false;
+  name.focus();
+}
+
 // Нажали на название магазина в списке закупки — показываем адрес
 function openStore(s) {
   haptic('light');
@@ -1611,10 +1663,12 @@ function renderPurchase() {
     const items = need.filter(x => (known.has(x.sec) ? x.sec : 'other') === s.id).sort((a, b) => a.ord - b.ord);
     const card = el('div', 'psec' + (items.length ? '' : ' empty'));
     const head = el('div', 'psec-head');
-    // Отдел с названием магазина — нажать, чтобы увидеть адрес и открыть 2ГИС
-    const shop = editingSections ? null : storeOfSection(s.name);
-    const title = el(shop ? 'button' : 'div', 'psec-title' + (shop ? ' store-link' : ''), s.name);
+    // Название магазина — нажать, чтобы увидеть адрес и 2ГИС; «Магазин не выбран» — завести новый магазин
+    const shop = storeOfSection(s.name);
+    const isNone = s.id === 'other';
+    const title = el(shop || isNone ? 'button' : 'div', 'psec-title' + (shop || isNone ? ' store-link' : ''), s.name);
     if (shop) { title.type = 'button'; title.addEventListener('click', () => openStore(shop)); }
+    if (isNone) { title.type = 'button'; title.addEventListener('click', () => openNewStore(items)); }
     const tools = el('div', 'psec-tools');
     const saved = !String(s.id).startsWith('new-');
     tools.append(
