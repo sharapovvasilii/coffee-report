@@ -145,6 +145,43 @@
   .btn-small { width: auto; padding: 9px 16px; font-size: 15px; }
   .refresh { display: block; margin: 6px auto 0; }
 
+  /* Кнопки заявки: зажать — изменить, смахнуть вбок — убрать (владелец и закупщик) */
+  .chip.swipe { touch-action: pan-y; transition: background .15s; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; }
+  .chip.del-ready { background: var(--err) !important; }
+  .swipe-hint { font-size: 12px; margin: 0 0 4px; }
+  .cat-edit { background: none; border: 0; color: var(--accent); font: inherit; font-size: 22px; line-height: 1; padding: 0 10px; }
+
+  /* Окно снизу: правка кнопки, карточка товара и магазина */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 50; display: flex; align-items: flex-end; }
+  .sheet {
+    background: var(--card); width: 100%; border-radius: 18px 18px 0 0; padding: 18px 16px 24px;
+    max-height: 85vh; overflow-y: auto; padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  .sheet h2 { margin: 0 0 2px; font-size: 21px; font-weight: 800; }
+  .sheet input { transform: translateZ(0); }   /* iOS: без этого курсор в окне снизу бывает не виден */
+  .sheet select { width: 100%; text-align: left; text-align-last: left; }
+  .sheet .grp { color: var(--hint); font-size: 13px; margin-bottom: 10px; }
+  .sheet .btn { margin-top: 10px; }
+  .store { background: var(--field); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+  .store b { font-size: 16px; }
+  .store div { font-size: 14px; margin-top: 3px; }
+  .store a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .store .map-btn { margin-top: 8px; width: 100%; background: var(--card); color: var(--ok); }
+  .store .addr-row { display: flex; gap: 6px; margin-top: 6px; }
+  .store .addr-row input { flex: 1; min-width: 0; background: var(--card); }
+  .store .addr-row .btn, .store-add .btn { width: auto; padding: 8px 12px; font-size: 14px; margin: 0; }
+  .store .st-head { display: flex; justify-content: space-between; align-items: center; }
+  .store .st-name { display: flex; align-items: center; }
+  .store-add { display: flex; gap: 6px; margin: 8px 0; }
+  .store-add select, .store-add input { flex: 1; min-width: 0; width: auto; }
+  /* Название магазина в списке закупки — кнопка с адресом */
+  .psec-title.store-link {
+    background: none; border: 0; padding: 4px 0; font: inherit; font-size: 12px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .03em; color: var(--accent); text-align: left; cursor: pointer;
+  }
+  .psec-title.store-link::after { content: ' ›'; }
+
   /* Вкладки: число столбцов задаётся из кода */
   .tabs { margin-bottom: 4px; }
   .tabs .seg-btn { padding: 11px 4px; font-size: 14px; }
@@ -357,6 +394,7 @@
 <h2 class="sec">Заявка - что закончилось</h2>
 <div class="card">
   <p class="note today-note" id="orderedTodayNote" hidden></p>
+  <p class="note swipe-hint chip-hint" hidden>Зажмите кнопку — можно изменить название и единицу. Смахните вбок — убрать.</p>
   <div class="chips" id="chips"></div>
   <textarea id="orderText" placeholder="Что еще нужно - каждое с новой строки"></textarea>
 </div>
@@ -430,11 +468,17 @@
   <h2 class="sec">Что нужно</h2>
   <div class="card">
     <p class="note today-note" id="orderedTodayNote2" hidden></p>
+    <p class="note swipe-hint chip-hint" hidden>Зажмите кнопку — можно изменить название и единицу. Смахните вбок — убрать.</p>
     <div class="chips" id="orderChips"></div>
     <textarea id="orderNow" placeholder="Что еще нужно - каждое с новой строки"></textarea>
   </div>
   <button id="sendOrderBtn" class="btn" type="button" hidden>Отправить заявку</button>
 </main>
+
+<!-- Окно снизу: правка кнопки заявки, карточка товара и магазина -->
+<div class="sheet-bg" id="itemSheet" hidden>
+  <div class="sheet" id="itemSheetBody"></div>
+</div>
 
 <!-- Зарплата (только владелец) -->
 <main id="payScreen" hidden>
@@ -516,7 +560,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-01.6';
+const APP_VERSION = '2026-11-02.1';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -528,6 +572,9 @@ const $ = id => document.getElementById(id);
 
 let reportId = newId();
 let busy = false;
+let myRole = null;      // 'barista', 'owner' или 'buyer' — с сервера (или с прошлого раза)
+let stores = [];        // магазины с листа «Магазины»
+let orderInfo = {};     // кнопки заявки: { 'Молоко': { unit, stores } }
 const fields = {};
 const stockEls = [];
 
@@ -966,6 +1013,7 @@ function saveInitCache(data) {
   storage(ls => ls.setItem(INIT_KEY, JSON.stringify({
     uid: myTgId(), role: data.role, name: data.name, config: data.config,
     orderItems: data.orderItems, purchase: data.purchase, sections: data.sections, stock: data.stock,
+    stores: data.stores, orderInfo: data.orderInfo,
   })));
 }
 
@@ -975,10 +1023,25 @@ function loadInitCache() {
 }
 
 function showApp(data, fresh) {
+  myRole = data.role;
+  if (Array.isArray(data.stores)) stores = data.stores;
+  if (data.orderInfo) orderInfo = data.orderInfo;
   if (data.role === 'buyer') {
-    $('tabs').hidden = true;
-    if (!(fresh && purchaseTouched)) showBuyer(data.purchase, data.sections, data.stock);
+    // Закупщику — список закупки и вкладка «Заявка» (там он правит кнопки)
+    const first = shownRole !== 'buyer';
+    $('gate').hidden = true;
+    if (!(fresh && purchaseTouched)) {
+      purchase = data.purchase || [];
+      sections = data.sections || [];
+      renderPurchase();
+      renderStockView(data.stock);
+    }
+    applyLearned(data.orderItems);
+    enableChipEditing();
+    if (fresh) setOrderedToday(data.orderedToday);
+    if (first) { setupTabs('buyer'); showScreen('buyer'); }
     shownRole = 'buyer';
+    if (screen === 'order') buildOrderChips();
     return;
   }
   $('gate').hidden = true;
@@ -987,6 +1050,7 @@ function showApp(data, fresh) {
   applyConfig(data.config);
   applyMyName(data.name);
   applyLearned(data.orderItems);
+  enableChipEditing();
   if (fresh) {   // это меняется часто — берём только свежее с сервера
     applyLast(data.last);
     offerEdit(data.editable);
@@ -1037,10 +1101,12 @@ async function init() {
 const TAB_SCREENS = { report: 'form', order: 'order', buy: 'buyer', rev: 'revenue', pay: 'salary' };
 
 function setupTabs(role) {
-  const show = role === 'owner' ? ['report', 'order', 'buy', 'rev', 'pay'] : ['report', 'order'];
+  const show = role === 'owner' ? ['report', 'order', 'buy', 'rev', 'pay']
+    : role === 'buyer' ? ['buy', 'order'] : ['report', 'order'];
   const bar = $('tabs');
   bar.querySelectorAll('.seg-btn').forEach(b => {
     b.hidden = !show.includes(b.dataset.tab);
+    b.style.order = String(show.indexOf(b.dataset.tab));   // у закупщика «Закупка» — первой
     b.onclick = () => setTab(b.dataset.tab);
   });
   // Больше четырёх вкладок не помещается — листаются вбок
@@ -1048,7 +1114,7 @@ function setupTabs(role) {
   bar.classList.toggle('scroll', scroll);
   bar.style.gridTemplateColumns = scroll ? '' : `repeat(${show.length}, 1fr)`;
   bar.hidden = false;
-  markTab('report');
+  markTab(show[0]);
 }
 
 function markTab(tab) {
@@ -1092,11 +1158,167 @@ function buildOrderChips() {
     b.type = 'button'; b.className = 'chip'; b.textContent = src.dataset.item; b.dataset.item = src.dataset.item;
     b.setAttribute('aria-pressed', keep.has(src.dataset.item) ? 'true' : 'false');
     b.addEventListener('click', () => {
+      if (b.dataset.swiped) { delete b.dataset.swiped; return; }   // только что смахивали — это не нажатие
       b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
       if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
     });
+    if (canEditChips()) enableSwipeDelete(b);
     box.appendChild(b);
   });
+}
+
+/* ---------- правка кнопок заявки (владелец и закупщик) ---------- */
+
+function haptic(kind) {
+  const h = tg && tg.HapticFeedback;
+  if (!h) return;
+  try {
+    if (kind === 'select') h.selectionChanged();
+    else if (kind === 'success' || kind === 'error') h.notificationOccurred(kind);
+    else h.impactOccurred(kind || 'light');
+  } catch (e) {}
+}
+
+async function api(body) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ initData }, body)),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+  return data;
+}
+
+function canEditChips() { return myRole === 'owner' || myRole === 'buyer'; }
+
+// Роль стала известна — включаем правку у уже нарисованных кнопок и показываем подсказку
+function enableChipEditing() {
+  const on = canEditChips();
+  document.querySelectorAll('.chip-hint').forEach(p => { p.hidden = !on; });
+  if (!on) return;
+  document.querySelectorAll('#chips .chip, #orderChips .chip').forEach(b => {
+    if (!b.classList.contains('swipe')) enableSwipeDelete(b);
+  });
+}
+
+// Зажать кнопку — окно правки; смахнуть вбок — убрать (с подтверждением)
+const SWIPE_DELETE = 90;   // на сколько пикселей смахнуть, чтобы удалить
+function enableSwipeDelete(b) {
+  b.classList.add('swipe');
+  let x0 = null, y0 = 0, dx = 0, id = null, hold = null;
+  const item = () => b.dataset.item;
+  const reset = () => { b.style.transform = ''; b.style.opacity = ''; b.classList.remove('del-ready'); };
+  const stopHold = () => { clearTimeout(hold); hold = null; };
+  const markSwiped = ms => { b.dataset.swiped = '1'; setTimeout(() => { delete b.dataset.swiped; }, ms); };
+  b.addEventListener('contextmenu', e => e.preventDefault());   // без меню «Копировать» при долгом нажатии
+  b.addEventListener('pointerdown', e => {
+    x0 = e.clientX; y0 = e.clientY; dx = 0; id = e.pointerId;
+    stopHold();
+    hold = setTimeout(() => {
+      hold = null;
+      if (x0 === null || Math.abs(dx) >= 8) return;
+      x0 = null;
+      markSwiped(600);
+      haptic('medium');
+      openItemEdit(item());
+    }, 550);
+  });
+  b.addEventListener('pointermove', e => {
+    if (x0 === null || e.pointerId !== id) return;
+    dx = e.clientX - x0;
+    if (Math.abs(e.clientY - y0) > 30 && Math.abs(dx) < 20) { x0 = null; stopHold(); reset(); return; }   // листают вниз
+    if (Math.abs(dx) < 8) return;
+    stopHold();
+    try { b.setPointerCapture(id); } catch (err) {}
+    b.style.transform = `translateX(${dx}px)`;
+    b.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 250));
+    const ready = Math.abs(dx) >= SWIPE_DELETE;
+    if (ready !== b.classList.contains('del-ready')) { b.classList.toggle('del-ready', ready); if (ready) haptic('medium'); }
+  });
+  b.addEventListener('pointerup', async () => {
+    stopHold();
+    if (x0 === null) return;
+    x0 = null;
+    if (Math.abs(dx) >= 8) markSwiped(400);
+    const go = Math.abs(dx) >= SWIPE_DELETE;
+    reset();
+    if (go) askDeleteChip(item());
+  });
+  b.addEventListener('pointercancel', () => { x0 = null; stopHold(); reset(); });
+}
+
+async function askDeleteChip(item) {
+  if (!(await confirm_(`Убрать кнопку «${item}» из заявки? Строка удалится с листа «Кнопки заявки».`))) return;
+  itemPost({ action: 'itemDelete', name: item }, item, null);
+}
+
+function closeItem() { $('itemSheet').hidden = true; }
+$('itemSheet').addEventListener('click', e => { if (e.target === $('itemSheet')) closeItem(); });
+
+// Окно правки кнопки: название и в чём считаем (шт, кг, кор…)
+const UNITS = ['шт', 'кг', 'г', 'л', 'кор', 'уп', 'пачка', 'бут', 'банка', 'ящ', 'мешок'];
+function openItemEdit(item) {
+  const info = orderInfo[item] || {};
+  const stockItem = (config.stock || []).find(x => x.name.toLowerCase() === item.toLowerCase());
+  const cur = info.unit || (stockItem && stockItem.unit) || 'шт';
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, item));
+  body.appendChild(el('div', 'grp', stockItem ? 'Кнопка заявки. Этот товар есть и в товарном учёте — там тоже поменяется.' : 'Кнопка заявки'));
+  const name = el('input', 'full');
+  name.value = item; name.maxLength = 40; name.placeholder = 'Название товара';
+  const unit = el('select', 'full');
+  unit.setAttribute('aria-label', 'Единица');
+  UNITS.concat(UNITS.includes(cur) ? [] : [cur]).forEach(u => unit.add(new Option(u, u)));
+  unit.value = cur;
+  body.append(el('div', 'note', 'Название'), name, el('div', 'note', 'В чём считаем'), unit);
+  const save = el('button', 'btn', 'Сохранить');
+  save.type = 'button';
+  save.addEventListener('click', () => {
+    const newName = name.value.trim();
+    if (newName.length < 2) return alert_('Напишите название товара.');
+    if (newName === item && unit.value === (info.unit || '')) return closeItem();
+    itemPost({ action: 'itemEdit', name: item, newName, unit: unit.value }, item, newName);
+  });
+  const del = el('button', 'btn btn-light', 'Убрать кнопку');
+  del.type = 'button';
+  del.style.color = 'var(--err)';
+  del.addEventListener('click', () => askDeleteChip(item));
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.append(save, del, close);
+  $('itemSheet').hidden = false;
+}
+
+// Сохранить правку на сервере и перерисовать кнопки. newName = null — кнопку убрали.
+async function itemPost(body, oldName, newName) {
+  if (busy) return;
+  if (!inTg || !apiReady) return alert_('Откройте приложение через бота в Телеграме.');
+  setBusy(true);
+  try {
+    const data = await api(body);
+    closeItem();
+    ['#chips', '#orderChips'].forEach(sel => {
+      document.querySelectorAll(sel + ' .chip').forEach(c => {
+        if (c.dataset.item !== oldName) return;
+        if (newName === null) c.remove();
+        else { c.dataset.item = newName; c.textContent = newName; }
+      });
+    });
+    if (data.orderInfo) orderInfo = data.orderInfo;
+    if (data.config) applyConfig(data.config);
+    applyLearned(data.orderItems);
+    enableChipEditing();
+    if (screen === 'order') buildOrderChips();
+    saveDraftSoon();
+    haptic('success');
+  } catch (e) {
+    await alert_('Не получилось: ' + e.message);
+  } finally {
+    setBusy(false);
+  }
 }
 
 async function submitOrder() {
@@ -1196,9 +1418,165 @@ function itemButton(x) {
   if (x.source) b.title = x.source;
   b.addEventListener('click', () => {
     if (justDragged || x.id === 'new') return;   // только что перетащили или ещё сохраняется
-    x.bought ? askReturn(x) : markBought(x);
+    openItem(x);
   });
   return b;
+}
+
+/* --- карточка товара: в каком магазине купить --- */
+
+function storeInfo(name) {
+  return stores.find(s => s.name === name) || { name, address: '', phone: '', hours: '', link: '' };
+}
+
+function mapLink(s) {
+  if (s.link) return s.link;
+  return 'https://2gis.ru/search/' + encodeURIComponent([s.name, s.address].filter(Boolean).join(' '));
+}
+
+function openLink(url) {
+  if (tg && tg.openLink) tg.openLink(url);
+  else window.open(url, '_blank');
+}
+
+// Карточка магазина: название (можно переименовать), адрес (можно вписать прямо здесь), часы, телефон, 2ГИС.
+// reopen — что открыть заново после сохранения; onRemove — убрать магазин у товара.
+function storeCard(s, reopen, onRemove) {
+  const card = el('div', 'store');
+  const head = el('div', 'st-head');
+  const nameBox = el('div', 'st-name');
+  const pen = el('button', 'cat-edit', '✎');
+  pen.type = 'button'; pen.setAttribute('aria-label', `Переименовать магазин ${s.name}`);
+  pen.addEventListener('click', () => {
+    const row = el('div', 'addr-row');
+    const inp = el('input');
+    inp.value = s.name; inp.maxLength = 60; inp.placeholder = 'Название магазина';
+    const ok = el('button', 'btn', 'Сохранить');
+    ok.type = 'button';
+    ok.addEventListener('click', async () => {
+      const name = inp.value.trim();
+      if (name.length < 2) return alert_('Напишите название магазина.');
+      if (name === s.name) return row.replaceWith(head);
+      await purchaseOp({ op: 'storeRename', store: s.name, name });
+      if (reopen) reopen(name);
+    });
+    row.append(inp, ok);
+    head.replaceWith(row);
+    inp.focus();
+  });
+  nameBox.append(el('b', null, s.name), pen);
+  head.appendChild(nameBox);
+  if (onRemove) {
+    const x = el('button', 'x', '×');
+    x.type = 'button'; x.setAttribute('aria-label', `Убрать магазин ${s.name} у товара`);
+    x.addEventListener('click', onRemove);
+    head.appendChild(x);
+  }
+  card.appendChild(head);
+  const addrRow = el('div', 'addr-row');
+  const addrInput = el('input');
+  addrInput.placeholder = 'Впишите адрес магазина'; addrInput.maxLength = 200; addrInput.value = s.address || '';
+  const addrSave = el('button', 'btn', 'Сохранить');
+  addrSave.type = 'button';
+  addrSave.addEventListener('click', async () => {
+    const address = addrInput.value.trim();
+    if (address.length < 3) return alert_('Напишите адрес.');
+    await purchaseOp({ op: 'storeAddress', store: s.name, address });
+    if (reopen) reopen();
+  });
+  addrRow.append(addrInput, addrSave);
+  if (s.address) {
+    const line = el('div', null, '📍 ' + s.address + ' ');
+    const ed = el('button', 'link', 'изменить');
+    ed.type = 'button'; ed.style.padding = '0';
+    ed.addEventListener('click', () => { line.replaceWith(addrRow); addrInput.focus(); });
+    line.appendChild(ed);
+    card.appendChild(line);
+  } else {
+    card.appendChild(addrRow);
+  }
+  if (s.hours) card.appendChild(el('div', null, '🕘 ' + s.hours));
+  if (s.phone) {
+    const d = el('div', null, '📞 ');
+    const a = el('a', null, s.phone);
+    a.href = 'tel:' + s.phone.replace(/[^\d+]/g, '');
+    d.appendChild(a);
+    card.appendChild(d);
+  }
+  const map = el('button', 'btn btn-small map-btn', 'Открыть в 2ГИС');
+  map.type = 'button';
+  map.addEventListener('click', () => openLink(mapLink(s)));
+  card.appendChild(map);
+  return card;
+}
+
+// Нажали на название магазина в списке закупки — показываем адрес
+function openStore(s) {
+  haptic('light');
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(storeCard(s, newName => openStore(storeInfo(newName || s.name))));
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.appendChild(close);
+  $('itemSheet').hidden = false;
+}
+
+const normStore = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+function storeOfSection(name) {
+  const n = normStore(name);
+  return n ? stores.find(s => normStore(s.name) === n) || null : null;
+}
+
+// Нажали на товар: где купить (можно добавить магазин, в том числе новый) и «Куплено»
+function openItem(x) {
+  haptic('light');
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, x.name));
+  body.appendChild(el('div', 'grp', [x.unit ? 'считаем в: ' + x.unit : '', x.source].filter(Boolean).join(' · ')));
+  const list = x.stores || [];
+  const reopen = () => { const y = purchase.find(i => i.name === x.name); if (y) openItem(y); };
+  if (!list.length) body.appendChild(el('div', 'note', 'Магазин не указан — выберите или впишите ниже.'));
+  list.forEach(name => body.appendChild(storeCard(storeInfo(name), reopen, async () => {
+    if (!(await confirm_(`Убрать магазин «${name}» у товара «${x.name}»?`))) return;
+    await purchaseOp({ op: 'itemStoreDel', name: x.name, store: name });
+    reopen();
+  })));
+  // Товар бывает в нескольких магазинах — можно добавить ещё один или новый
+  const row = el('div', 'store-add');
+  const sel = el('select');
+  sel.setAttribute('aria-label', 'Магазин');
+  sel.add(new Option(list.length ? '+ Ещё магазин' : 'Выбрать магазин', ''));
+  stores.filter(s => !list.includes(s.name)).forEach(s => sel.add(new Option(s.name, s.name)));
+  sel.add(new Option('Новый магазин…', '__new'));
+  const typed = el('input');
+  typed.placeholder = 'Название магазина'; typed.maxLength = 60; typed.hidden = true;
+  sel.addEventListener('change', () => {
+    typed.hidden = sel.value !== '__new';
+    sel.hidden = !typed.hidden;
+    if (!typed.hidden) typed.focus();
+  });
+  const add = el('button', 'btn', 'Добавить');
+  add.type = 'button';
+  add.addEventListener('click', async () => {
+    const store = sel.value === '__new' ? typed.value.trim() : sel.value;
+    if (!store) return alert_(sel.value === '__new' ? 'Напишите название магазина.' : 'Выберите магазин.');
+    if (store.length < 2) return alert_('Напишите название магазина.');
+    await purchaseOp({ op: 'itemStore', name: x.name, store });
+    reopen();
+  });
+  row.append(sel, typed, add);
+  body.appendChild(row);
+  const main = el('button', 'btn', x.bought ? 'Вернуть в «Нужно купить»' : '✓ Куплено');
+  main.type = 'button';
+  main.addEventListener('click', () => { closeItem(); x.bought ? returnItem(x) : markBought(x); });
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.append(main, close);
+  $('itemSheet').hidden = false;
 }
 
 function toolBtn(label, title, disabled, fn) {
@@ -1233,7 +1611,10 @@ function renderPurchase() {
     const items = need.filter(x => (known.has(x.sec) ? x.sec : 'other') === s.id).sort((a, b) => a.ord - b.ord);
     const card = el('div', 'psec' + (items.length ? '' : ' empty'));
     const head = el('div', 'psec-head');
-    const title = el('div', 'psec-title', s.name);
+    // Отдел с названием магазина — нажать, чтобы увидеть адрес и открыть 2ГИС
+    const shop = editingSections ? null : storeOfSection(s.name);
+    const title = el(shop ? 'button' : 'div', 'psec-title' + (shop ? ' store-link' : ''), s.name);
+    if (shop) { title.type = 'button'; title.addEventListener('click', () => openStore(shop)); }
     const tools = el('div', 'psec-tools');
     const saved = !String(s.id).startsWith('new-');
     tools.append(
@@ -1296,12 +1677,16 @@ async function purchaseOp(body, rollback) {
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (Array.isArray(data.stores)) stores = data.stores;   // до отрисовки: от них зависят заголовки отделов
     if (purchaseBusy === 1) {
       purchase = data.items;
       if (data.sections) sections = data.sections;
       renderPurchase();
     }
     if (data.stock) renderStockView(data.stock);
+    if (Array.isArray(data.stores)) stores = data.stores;
+    if (data.orderInfo) orderInfo = data.orderInfo;
+    if (Array.isArray(data.orderItems)) { applyLearned(data.orderItems); enableChipEditing(); }
   } catch (e) {
     if (rollback) { rollback(); renderPurchase(); }
     alert_('Не получилось сохранить: ' + e.message + '\nПроверьте интернет и попробуйте ещё раз.');
@@ -1326,8 +1711,7 @@ function markBought(x) {
   purchaseOp({ op: 'bought', id: x.id }, () => { x.bought = false; purchase = before; });
 }
 
-async function askReturn(x) {
-  if (!(await confirm_(`Вернуть «${x.name}» в список «Нужно купить»?`))) return;
+function returnItem(x) {
   const before = purchase.slice();
   moveItem(x, false);
   renderPurchase();
@@ -2029,10 +2413,12 @@ function addChip(item) {
   b.type = 'button'; b.className = 'chip'; b.textContent = item; b.dataset.item = item;
   b.setAttribute('aria-pressed', draftChips.has(item) ? 'true' : 'false');
   b.addEventListener('click', () => {
+    if (b.dataset.swiped) { delete b.dataset.swiped; return; }   // только что смахивали — это не нажатие
     b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
     if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
     saveDraftSoon();
   });
+  if (canEditChips()) enableSwipeDelete(b);
   $('chips').appendChild(b);
 }
 
