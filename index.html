@@ -37,7 +37,8 @@
     padding: 14px 14px 100px;
     -webkit-tap-highlight-color: transparent;
   }
-  header { padding: 2px 2px 4px; }
+  /* Заголовки и подписи вне карточек — по одной линии с текстом внутри карточек (отступ карточки 12px) */
+  header { padding: 2px 12px 4px; }
   h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
   .sub { color: var(--hint); font-size: 12px; margin-top: 2px; }
   .banner {
@@ -46,7 +47,8 @@
   }
 
   /* Заголовки разделов — над карточками */
-  .sec { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; margin: 18px 2px 8px; }
+  .sec { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; margin: 18px 12px 8px; }
+  main > .note, main > p.note, #payBody > .note, #revBody > .note, #myPayBody > .note, #stockBlock > .note { padding: 0 12px; }
   .card { background: var(--card); border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
   h3 { font-size: 15px; font-weight: 700; margin: 8px 0 2px; }
   .lbl { margin: 8px 0 2px; }
@@ -131,7 +133,7 @@
   .edit-card p { margin: 4px 0 6px; font-size: 14px; }
 
   /* Экран закупщика */
-  .sec-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .sec-row { display: flex; align-items: baseline; justify-content: space-between; padding-right: 12px; }
   .sec-row .link { font-size: 14px; }
   .plist { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
   .pitem {
@@ -213,7 +215,7 @@
   .today-note { margin: 2px 0 8px; color: var(--warn); font-size: 13px; }
 
   /* Отделы списка закупки */
-  .drag-hint { font-size: 12px; margin: -4px 2px 8px; }
+  .drag-hint { font-size: 12px; margin: -4px 0 8px; }
   .psec { background: var(--card); border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
   .psec.empty { display: none; }
   #sections.dragging .psec.empty, #sections.editing .psec.empty { display: block; }
@@ -320,6 +322,9 @@
   .bill-go { color: var(--hint); font-size: 22px; }
   .sheet-text { font-size: 15px; margin: 6px 0; white-space: pre-line; }
   .bill-photo { width: 100%; border-radius: 12px; margin: 6px 0; display: block; cursor: zoom-in; }
+  #repairScreen textarea { margin: 6px 0; }
+  #repairScreen .btn { margin-top: 4px; }
+  .sheet textarea { width: 100%; }
 
   /* Нажатие видно сразу: при отправке — крутилка и «Отправляю…» */
   .btn.pending { opacity: .8; }
@@ -341,7 +346,6 @@
     pointer-events: none; z-index: 2; }
 
   /* Моя з/п */
-  #myPayBody > .note { padding: 0 12px; }
   .my-total { text-align: center; padding: 12px; }
   .my-total .big { color: var(--accent); }
   .my-wait { color: var(--hint); font-size: 12px; font-weight: 600; }
@@ -370,6 +374,7 @@
   <button type="button" class="seg-btn" data-tab="order" hidden>Заявка</button>
   <button type="button" class="seg-btn" data-tab="bills" hidden>Счета</button>
   <button type="button" class="seg-btn" data-tab="mypay" hidden>Моя з/п</button>
+  <button type="button" class="seg-btn" data-tab="repair" hidden>Ремонт</button>
   <button type="button" class="seg-btn" data-tab="buy" hidden>Закупка</button>
   <button type="button" class="seg-btn" data-tab="rev" hidden>Выручка</button>
   <button type="button" class="seg-btn" data-tab="pay" hidden>Зарплата</button>
@@ -552,6 +557,25 @@
   <div id="billList"></div>
 </main>
 
+<!-- Ремонт: что сломалось и как починили (все) -->
+<main id="repairScreen" hidden>
+  <header>
+    <h1>Ремонт</h1>
+    <div class="sub">Что сломалось и как починили</div>
+  </header>
+  <h2 class="sec">Что сломалось</h2>
+  <div class="card">
+    <div class="ph-head"><b>Фото</b><small>Можно без фото</small></div>
+    <div class="photos" id="repairPhotos"></div>
+    <input type="file" id="repairPhotoInput" accept="image/*" multiple hidden>
+    <textarea id="repairWhat" placeholder="Что сломано — например «кофемашина не греет воду»"></textarea>
+    <textarea id="repairIdea" placeholder="Как починить или что сделать (если знаете)"></textarea>
+    <button type="button" class="btn" id="repairSend">Сообщить о поломке</button>
+  </div>
+  <div id="repairList"></div>
+  <input type="file" id="fixPhotoInput" accept="image/*" multiple hidden>
+</main>
+
 <!-- Моя з/п: своя невыплаченная зарплата (бариста) -->
 <main id="myPayScreen" hidden>
   <header>
@@ -653,7 +677,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-03.1';
+const APP_VERSION = '2026-11-04.1';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -1033,6 +1057,7 @@ function showScreen(name) {
   $('payScreen').hidden = name !== 'salary';
   $('billScreen').hidden = name !== 'bills';
   $('myPayScreen').hidden = name !== 'mypay';
+  $('repairScreen').hidden = name !== 'repair';
   updateMainButton();
   // В списке закупки товары перетаскивают пальцем — отключаем «смахнуть вниз, чтобы закрыть»
   try {
@@ -1172,7 +1197,7 @@ function showApp(data, fresh) {
 
 // Телефон помнит последний ответ вкладок «Счета» и «Моя з/п»: показываем сразу, свежее подтягиваем в фоне.
 // Только для этого же человека.
-const TAB_KEYS = { bills: 'shift-report-bills-v1', mypay: 'shift-report-mypay-v1' };
+const TAB_KEYS = { bills: 'shift-report-bills-v1', mypay: 'shift-report-mypay-v1', repair: 'shift-report-repairs-v1' };
 function tabCacheGet(tab) {
   const c = storage(ls => JSON.parse(ls.getItem(TAB_KEYS[tab]) || 'null'));
   return c && c.uid === myTgId() ? c.data : null;
@@ -1184,9 +1209,11 @@ function tabCachePut(tab, data) {
 // После открытия приложения — заранее, в фоне: к открытию вкладки данные уже есть
 let tabsPreloaded = false;
 function preloadTabs(role) {
-  if (tabsPreloaded || role === 'buyer') return;   // закупщик счета и з/п не видит
+  if (tabsPreloaded) return;
   tabsPreloaded = true;
   setTimeout(() => {
+    loadRepairs();
+    if (role === 'buyer') return;   // закупщик счета и з/п не видит
     loadBills();
     if (role !== 'owner') loadMyPay();
   }, 1500);
@@ -1220,14 +1247,14 @@ async function init() {
 
 /* ---------- вкладки: бариста — Отчёт/Заявка, владелец — ещё Закупка и Выручка ---------- */
 
-const TAB_SCREENS = { report: 'form', order: 'order', bills: 'bills', mypay: 'mypay', buy: 'buyer', rev: 'revenue',
-  pay: 'salary' };
+const TAB_SCREENS = { report: 'form', order: 'order', bills: 'bills', mypay: 'mypay', repair: 'repair', buy: 'buyer',
+  rev: 'revenue', pay: 'salary' };
 
-// Бариста: Отчёт, Заявка, Счета, Моя з/п. Владелец: Отчёт, Заявка, Счета, Закупка, Выручка, Зарплата.
-// Закупщик: Закупка, Заявка (счетов не видит).
+// Бариста: Отчёт, Заявка, Счета, Моя з/п, Ремонт. Владелец: Отчёт, Заявка, Счета, Закупка, Выручка, Зарплата, Ремонт.
+// Закупщик: Закупка, Заявка, Ремонт (счетов не видит).
 function setupTabs(role) {
-  const show = role === 'owner' ? ['report', 'order', 'bills', 'buy', 'rev', 'pay']
-    : role === 'buyer' ? ['buy', 'order'] : ['report', 'order', 'bills', 'mypay'];
+  const show = role === 'owner' ? ['report', 'order', 'bills', 'buy', 'rev', 'pay', 'repair']
+    : role === 'buyer' ? ['buy', 'order', 'repair'] : ['report', 'order', 'bills', 'mypay', 'repair'];
   const bar = $('tabs');
   bar.querySelectorAll('.seg-btn').forEach(b => {
     b.hidden = !show.includes(b.dataset.tab);
@@ -1259,6 +1286,7 @@ function setTab(tab) {
   if (tab === 'order') buildOrderChips();
   if (tab === 'bills') loadBills();
   if (tab === 'mypay') loadMyPay();
+  if (tab === 'repair') loadRepairs();
   if (tab === 'buy') refreshPurchase();
   if (tab === 'rev' && !revLoaded) pickPreset('week');
   if (tab === 'pay' && !payLoaded) pickPayPreset('week');
@@ -2889,6 +2917,7 @@ function photoSet(boxId, inputId, max) {
     clear() { set.list.length = 0; set.render(); },
     render() {
       const box = $(boxId);
+      if (!box) return;   // место для фото ещё не на экране (окно «Починено»)
       box.textContent = '';
       set.list.forEach((src, i) => {
         const d = el('div', 'ph');
@@ -2954,7 +2983,7 @@ function renderBills() {
   out.push(el('h2', 'sec', `Не оплачены${d.open.length ? ' · ' + d.open.length : ''}` +
     (d.openSum ? ` · ${fmt(d.openSum)} ₽` : '')));
   const open = el('div', 'card');
-  if (!d.open.length) open.appendChild(el('div', 'note', 'Неоплаченных счетов нет 👍'));
+  if (!d.open.length) open.appendChild(el('div', 'note', 'Неоплаченных счетов нет'));
   d.open.forEach(x => open.appendChild(billItem(x)));
   out.push(open);
   if (d.paid.length) {
@@ -3075,6 +3104,172 @@ $('billSend').addEventListener('click', async () => {
     'Счёт отправлен ✅');
   btnPending(btn, false);
   if (ok) { $('billFrom').value = ''; $('billSum').value = ''; $('billNote').value = ''; billPhotos.clear(); }
+});
+
+/* ---------- ремонт: что сломалось и как починили (все) ---------- */
+
+let repairData = null;   // { open: [...], fixed: [...] }
+const repairPhotos = photoSet('repairPhotos', 'repairPhotoInput', 4);
+const fixPhotos = photoSet('fixPhotos', 'fixPhotoInput', 4);
+repairPhotos.mount();
+fixPhotos.mount();
+
+async function loadRepairs() {
+  if (!inTg || !apiReady) return;
+  if (!repairData) {
+    const cached = tabCacheGet('repair');
+    if (cached) { repairData = cached; renderRepairs(); }
+    else $('repairList').replaceChildren(el('div', 'loading-note', 'Загружаю…'));
+  }
+  try {
+    const res = await fetch(`${API_URL}?action=repairs&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!Array.isArray(data.open)) throw new Error('на сервере старый Code.gs — обновите его в Apps Script.');
+    tabCachePut('repair', data);
+    if (JSON.stringify(data) !== JSON.stringify(repairData)) { repairData = data; renderRepairs(); }
+  } catch (e) {
+    if (!repairData) $('repairList').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+  }
+}
+
+function repairItem(x) {
+  const row = el('div', 'bill-item');
+  const main = el('div', 'bill-main');
+  main.appendChild(el('div', 'bill-what', x.what));
+  const bits = [x.status === 'починено' ? `починено ${x.fixedAt} · ${x.fixedBy}` : `${x.date} · ${x.who}`];
+  const n = x.photos + x.fixPhotos;
+  if (n) bits.push(`📷 ${n}`);
+  main.appendChild(el('small', null, bits.join(' · ')));
+  row.append(main, el('span', 'bill-go', '›'));
+  row.addEventListener('click', () => openRepair(x));
+  return row;
+}
+
+function renderRepairs() {
+  const d = repairData;
+  const out = [];
+  out.push(el('h2', 'sec', `Сломано${d.open.length ? ' · ' + d.open.length : ''}`));
+  const open = el('div', 'card');
+  if (!d.open.length) open.appendChild(el('div', 'note', 'Сейчас всё работает'));
+  d.open.forEach(x => open.appendChild(repairItem(x)));
+  out.push(open);
+  if (d.fixed.length) {
+    out.push(el('h2', 'sec', 'Починено'));
+    const done = el('div', 'card');
+    d.fixed.forEach(x => done.appendChild(repairItem(x)));
+    out.push(done);
+  }
+  $('repairList').replaceChildren(...out);
+}
+
+// Фото грузятся только по нажатию — через сервер
+function repairPhotoLoader(x, kind, count, label) {
+  const wrap = el('div');
+  if (!count) return wrap;
+  const btn = el('button', 'btn btn-light', `📷 ${label} (${count})`);
+  btn.type = 'button';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = 'Загружаю фото…';
+    try {
+      for (let n = 0; n < count; n++) {
+        const res = await fetch(`${API_URL}?action=repairPhoto&id=${encodeURIComponent(x.id)}&kind=${kind}&n=${n}&initData=${encodeURIComponent(initData)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+        const img = el('img', 'bill-photo');
+        img.src = data.data; img.alt = `${label} ${n + 1}`;
+        img.addEventListener('click', () => openPhotoView(img.src));
+        wrap.appendChild(img);
+      }
+      btn.remove();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = `📷 ${label} (${count})`;
+      alert_('Не удалось загрузить фото: ' + e.message);
+    }
+  });
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+function openRepair(x) {
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, x.what));
+  body.appendChild(el('div', 'grp', `${x.date} · сообщил(а) ${x.who}`));
+  if (x.idea) body.appendChild(el('div', 'sheet-text', '💡 ' + x.idea));
+  body.appendChild(repairPhotoLoader(x, 'before', x.photos, 'Фото поломки'));
+  if (x.status === 'починено') {
+    body.appendChild(el('h3', null, '✅ Починено'));
+    body.appendChild(el('div', 'grp', `${x.fixedAt} · ${x.fixedBy}`));
+    if (x.how) body.appendChild(el('div', 'sheet-text', '🔧 ' + x.how));
+    body.appendChild(repairPhotoLoader(x, 'after', x.fixPhotos, 'Фото после'));
+  } else {
+    body.appendChild(el('h3', null, 'Починили?'));
+    const how = el('textarea');
+    how.placeholder = 'Как починили — можно не писать';
+    const ph = el('div', 'photos'); ph.id = 'fixPhotos';
+    const head = el('div', 'ph-head');
+    head.append(el('b', null, 'Фото после'), el('small', null, 'Можно без фото'));
+    const done = el('button', 'btn', '✅ Починено');
+    done.type = 'button';
+    done.addEventListener('click', async () => {
+      if (done.disabled) return;
+      haptic('light');
+      btnPending(done, true);
+      const ok = await repairPost({ action: 'repairFix', id: x.id, how: how.value.trim(), photos: fixPhotos.list },
+        'Отмечено как починено ✅');
+      if (!ok) btnPending(done, false);
+    });
+    body.append(head, ph, how, done);
+    fixPhotos.clear();
+  }
+  if (myRole === 'owner') {
+    const del = el('button', 'btn btn-light', 'Удалить запись');
+    del.type = 'button'; del.style.color = 'var(--err)';
+    del.addEventListener('click', async () => {
+      if (!(await confirm_('Удалить эту запись о ремонте?'))) return;
+      repairPost({ action: 'repairDelete', id: x.id });
+    });
+    body.appendChild(del);
+  }
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.appendChild(close);
+  $('itemSheet').hidden = false;
+}
+
+async function repairPost(body, okText) {
+  if (busy) return false;
+  if (!inTg || !apiReady) { alert_('Откройте приложение через бота в Телеграме.'); return false; }
+  setBusy(true);
+  try {
+    repairData = await api(body);
+    tabCachePut('repair', repairData);
+    closeItem();
+    renderRepairs();
+    haptic('success');
+    if (okText) await alert_(okText);
+    return true;
+  } catch (e) {
+    await alert_('Не получилось: ' + e.message);
+    return false;
+  } finally {
+    setBusy(false);
+  }
+}
+
+$('repairSend').addEventListener('click', async () => {
+  const btn = $('repairSend');
+  if (btn.disabled) return;
+  haptic('light');
+  const what = $('repairWhat').value.trim();
+  if (what.length < 3) return alert_('Напишите, что сломалось.');
+  btnPending(btn, true);
+  const ok = await repairPost({ action: 'repairAdd', what, idea: $('repairIdea').value.trim(), photos: repairPhotos.list },
+    'Отправлено ✅ Сообщение ушло в общий чат.');
+  btnPending(btn, false);
+  if (ok) { $('repairWhat').value = ''; $('repairIdea').value = ''; repairPhotos.clear(); }
 });
 
 /* ---------- просмотр фото на весь экран ---------- */
@@ -3213,7 +3408,7 @@ function renderMyPay() {
   }
   const top = el('div', 'card my-total');
   top.append(el('div', 'note', 'К выплате'), el('div', 'big', `${fmt(d.due)} ₽`));
-  if (!d.units.length) top.appendChild(el('div', 'note', 'Сейчас всё выплачено 👍'));
+  if (!d.units.length) top.appendChild(el('div', 'note', 'Сейчас всё выплачено'));
   out.push(top);
 
   if (d.units.length) {
