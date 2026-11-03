@@ -325,6 +325,11 @@
   #repairScreen textarea { margin: 6px 0; }
   #repairScreen .btn { margin-top: 4px; }
   .sheet textarea { width: 100%; }
+  .idea-text { font-weight: 500; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; }
+  .comment { background: var(--field); border-radius: 10px; padding: 8px 10px; margin: 6px 0; }
+  .comment small { display: block; color: var(--hint); font-size: 12px; margin-bottom: 2px; }
+  .comment div { white-space: pre-line; font-size: 15px; }
 
   /* Нажатие видно сразу: при отправке — крутилка и «Отправляю…» */
   .btn.pending { opacity: .8; }
@@ -374,7 +379,7 @@
   <button type="button" class="seg-btn" data-tab="order" hidden>Заявка</button>
   <button type="button" class="seg-btn" data-tab="bills" hidden>Счета</button>
   <button type="button" class="seg-btn" data-tab="mypay" hidden>Моя з/п</button>
-  <button type="button" class="seg-btn" data-tab="repair" hidden>Ремонт</button>
+  <button type="button" class="seg-btn" data-tab="repair" hidden>Улучшения</button>
   <button type="button" class="seg-btn" data-tab="buy" hidden>Закупка</button>
   <button type="button" class="seg-btn" data-tab="rev" hidden>Выручка</button>
   <button type="button" class="seg-btn" data-tab="pay" hidden>Зарплата</button>
@@ -557,11 +562,11 @@
   <div id="billList"></div>
 </main>
 
-<!-- Ремонт: что сломалось и как починили (все) -->
+<!-- Улучшения (бывший «Ремонт»): что сломалось и как починили + идеи и предложения (все) -->
 <main id="repairScreen" hidden>
   <header>
-    <h1>Ремонт</h1>
-    <div class="sub">Что сломалось и как починили</div>
+    <h1>Улучшения</h1>
+    <div class="sub">Что сломалось, как починили, идеи и предложения</div>
   </header>
   <h2 class="sec">Что сломалось</h2>
   <div class="card">
@@ -573,6 +578,15 @@
     <button type="button" class="btn" id="repairSend">Сообщить о поломке</button>
   </div>
   <div id="repairList"></div>
+  <!-- Идеи и предложения: renderRepairs ставит этот блок сразу после «Сломано» -->
+  <div id="ideaBlock">
+    <h2 class="sec">Сообщить/предложить</h2>
+    <div class="card">
+      <textarea id="ideaText" maxlength="2000" placeholder="Есть идея, как сделать Кофе Кап лучше? Напишите сюда."></textarea>
+      <button type="button" class="btn" id="ideaSend">Отправить</button>
+    </div>
+    <div id="ideaList"></div>
+  </div>
   <input type="file" id="fixPhotoInput" accept="image/*" multiple hidden>
 </main>
 
@@ -677,7 +691,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-04.1';
+const APP_VERSION = '2026-11-04.3';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -1250,8 +1264,8 @@ async function init() {
 const TAB_SCREENS = { report: 'form', order: 'order', bills: 'bills', mypay: 'mypay', repair: 'repair', buy: 'buyer',
   rev: 'revenue', pay: 'salary' };
 
-// Бариста: Отчёт, Заявка, Счета, Моя з/п, Ремонт. Владелец: Отчёт, Заявка, Счета, Закупка, Выручка, Зарплата, Ремонт.
-// Закупщик: Закупка, Заявка, Ремонт (счетов не видит).
+// Бариста: Отчёт, Заявка, Счета, Моя з/п, Улучшения. Владелец: Отчёт, Заявка, Счета, Закупка, Выручка, Зарплата, Улучшения.
+// Закупщик: Закупка, Заявка, Улучшения (счетов не видит). Вкладка «Улучшения» в коде называется repair.
 function setupTabs(role) {
   const show = role === 'owner' ? ['report', 'order', 'bills', 'buy', 'rev', 'pay', 'repair']
     : role === 'buyer' ? ['buy', 'order', 'repair'] : ['report', 'order', 'bills', 'mypay', 'repair'];
@@ -3154,6 +3168,7 @@ function renderRepairs() {
   if (!d.open.length) open.appendChild(el('div', 'note', 'Сейчас всё работает'));
   d.open.forEach(x => open.appendChild(repairItem(x)));
   out.push(open);
+  out.push($('ideaBlock'));   // «Сообщить/предложить» — сразу после «Сломано»
   if (d.fixed.length) {
     out.push(el('h2', 'sec', 'Починено'));
     const done = el('div', 'card');
@@ -3161,6 +3176,98 @@ function renderRepairs() {
     out.push(done);
   }
   $('repairList').replaceChildren(...out);
+  renderIdeas();
+}
+
+/* ---------- предложения: список идей и комментарии (видят все) ---------- */
+
+function ideaItem(x) {
+  const row = el('div', 'bill-item');
+  const main = el('div', 'bill-main');
+  main.appendChild(el('div', 'idea-text', x.text));
+  const n = (x.comments || []).length;
+  main.appendChild(el('small', null, `${x.date} · ${x.who}` + (n ? ` · 💬 ${n}` : '')));
+  row.append(main, el('span', 'bill-go', '›'));
+  row.addEventListener('click', () => openIdea(x.id));
+  return row;
+}
+
+function renderIdeas() {
+  const ideas = (repairData && repairData.ideas) || [];
+  const out = [];
+  if (ideas.length) {
+    out.push(el('h2', 'sec', `Предложения · ${ideas.length}`));
+    const card = el('div', 'card');
+    ideas.forEach(x => card.appendChild(ideaItem(x)));
+    out.push(card);
+  }
+  $('ideaList').replaceChildren(...out);
+}
+
+// Открыть предложение: весь текст, комментарии и поле «Ваш комментарий»
+function openIdea(id) {
+  const x = ((repairData && repairData.ideas) || []).find(i => i.id === id);
+  if (!x) return closeItem();
+  haptic('light');
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, 'Предложение'));
+  body.appendChild(el('div', 'grp', `${x.date} · ${x.who}`));
+  body.appendChild(el('div', 'sheet-text', x.text));
+  const list = x.comments || [];
+  body.appendChild(el('h3', null, list.length ? `Комментарии · ${list.length}` : 'Комментариев пока нет'));
+  list.forEach(c => {
+    const box = el('div', 'comment');
+    if (c.who || c.date) box.appendChild(el('small', null, [c.who, c.date].filter(Boolean).join(' · ')));
+    box.appendChild(el('div', null, c.text));
+    body.appendChild(box);
+  });
+  const ta = el('textarea');
+  ta.maxLength = 1000; ta.placeholder = 'Ваш комментарий';
+  const send = el('button', 'btn', 'Комментировать');
+  send.type = 'button';
+  send.addEventListener('click', async () => {
+    const text = ta.value.trim();
+    if (text.length < 2) return alert_('Напишите комментарий.');
+    btnPending(send, true);
+    const ok = await ideaPost({ action: 'ideaComment', id: x.id, text }, () => openIdea(x.id));
+    if (!ok) btnPending(send, false);
+  });
+  body.append(ta, send);
+  if (myRole === 'owner') {
+    const del = el('button', 'btn btn-light', 'Удалить предложение');
+    del.type = 'button'; del.style.color = 'var(--err)';
+    del.addEventListener('click', async () => {
+      if (!(await confirm_('Удалить это предложение вместе с комментариями?'))) return;
+      ideaPost({ action: 'ideaDelete', id: x.id }, closeItem);
+    });
+    body.appendChild(del);
+  }
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.appendChild(close);
+  $('itemSheet').hidden = false;
+}
+
+// Сохранить на сервере; then — что показать после (открыть предложение заново или закрыть окно)
+async function ideaPost(body, then) {
+  if (busy) return false;
+  if (!inTg || !apiReady) { alert_('Откройте приложение через бота в Телеграме.'); return false; }
+  setBusy(true);
+  try {
+    repairData = await api(body);
+    tabCachePut('repair', repairData);
+    renderRepairs();
+    haptic('success');
+    if (then) then();
+    return true;
+  } catch (e) {
+    await alert_('Не получилось: ' + e.message);
+    return false;
+  } finally {
+    setBusy(false);
+  }
 }
 
 // Фото грузятся только по нажатию — через сервер
@@ -3270,6 +3377,19 @@ $('repairSend').addEventListener('click', async () => {
     'Отправлено ✅ Сообщение ушло в общий чат.');
   btnPending(btn, false);
   if (ok) { $('repairWhat').value = ''; $('repairIdea').value = ''; repairPhotos.clear(); }
+});
+
+// Идея или предложение — на лист «Предложения», видно всем списком ниже
+$('ideaSend').addEventListener('click', async () => {
+  const btn = $('ideaSend');
+  if (btn.disabled || busy) return;
+  haptic('light');
+  const text = $('ideaText').value.trim();
+  if (text.length < 3) return alert_('Напишите вашу идею или предложение.');
+  btnPending(btn, true);
+  const ok = await ideaPost({ action: 'idea', text });
+  btnPending(btn, false);
+  if (ok) { $('ideaText').value = ''; await alert_('Спасибо! Предложение добавлено в список.'); }
 });
 
 /* ---------- просмотр фото на весь экран ---------- */
