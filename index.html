@@ -503,6 +503,7 @@
   <textarea id="baristaFeedback" style="min-height: 110px" placeholder="Напишите здесь ваши пожелания: что можно сделать для улучшения, что хотели бы добавить, убрать, заменить, что сломано"></textarea>
 </div>
 
+<p id="syncStatus" class="status" role="status" aria-live="polite" hidden></p>
 <button id="sendBtn" class="btn" type="button" hidden>Отправить отчёт</button>
 </main>
 
@@ -563,6 +564,7 @@
     <div class="qty-list" id="orderQty"></div>
     <textarea id="orderNow" placeholder="Что еще нужно - каждое с новой строки, например «Молоко 5 л»"></textarea>
   </div>
+  <p id="orderSyncStatus" class="status" role="status" aria-live="polite" hidden></p>
   <button id="sendOrderBtn" class="btn" type="button" hidden>Отправить заявку</button>
 </main>
 
@@ -714,7 +716,8 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-04.5';
+const APP_VERSION = '2026-11-04.6';
+const API_CONTRACT_VERSION = 1;
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -761,6 +764,13 @@ function fmt(n) {
 function storage(fn) { try { return fn(window.localStorage); } catch (e) { return null; } }
 
 function showBanner(text) { const b = $('banner'); b.textContent = text; b.hidden = !text; }
+function setSyncStatus(text, state, target) {
+  const el = $(target || 'syncStatus');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'status' + (state ? ' ' + state : '');
+  el.hidden = !text;
+}
 function alert_(msg) {
   return new Promise(res => {
     if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) tg.showAlert(msg, res);
@@ -968,9 +978,13 @@ function recalc() {
 /* ---------- черновик ---------- */
 
 let draftTimer;
-function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 400); }
+function saveDraftSoon() {
+  clearTimeout(draftTimer);
+  setSyncStatus('Сохраняем черновик на этом устройстве…');
+  draftTimer = setTimeout(saveDraft, 400);
+}
 function saveDraft() {
-  if (editing) return;   // исправление не смешиваем с черновиком нового отчёта
+  if (editing) return false;   // исправление не смешиваем с черновиком нового отчёта
   const d = {
     savedOn: todayISO(), id: reportId, fields: {}, stock: {},
     expenses: [...document.querySelectorAll('.exp')].map(r => ({
@@ -981,7 +995,10 @@ function saveDraft() {
   };
   for (const k in fields) d.fields[k] = fields[k].value;
   stockEls.forEach(s => { d.stock[s.name] = s.el.value; });
-  storage(ls => ls.setItem(DRAFT_KEY, JSON.stringify(d)));
+  let saved = false;
+  storage(ls => { ls.setItem(DRAFT_KEY, JSON.stringify(d)); saved = true; });
+  setSyncStatus(saved ? 'Черновик сохранён на этом устройстве.' : 'Не удалось сохранить черновик локально. Не закрывайте форму.', saved ? 'ok' : 'warn');
+  return saved;
 }
 function restoreDraft() {
   const raw = storage(ls => ls.getItem(DRAFT_KEY));
@@ -1001,6 +1018,7 @@ function restoreDraft() {
   renderQtyRows('chips');
   pairMode = typeof d.pairMode === 'boolean' ? d.pairMode : !!fields.barista2.value;
   updateBaristaRows();
+  setSyncStatus('Восстановлен черновик с этого устройства.');
   return true;
 }
 
@@ -1272,7 +1290,16 @@ async function init() {
     if (shownRole) return showBanner('Нет связи с таблицей — списки могут быть не самые свежие.');
     return gate('error');
   }
-  if (data.ok) showBanner('');
+  if (data.ok) {
+    const notices = [];
+    if (Number(data.contract) !== API_CONTRACT_VERSION) {
+      notices.push('Версия приложения и сервера не согласована. Обновите страницу или сообщите владельцу.');
+    }
+    if (data.schemaIssues && data.schemaIssues.length) {
+      notices.push('Нужно проверить структуру Google Таблицы: ' + data.schemaIssues.join('; ') + '. Сообщите владельцу.');
+    }
+    showBanner(notices.join(' '));
+  }
   if (!data.ok || data.access !== 'разрешён') {
     if (data.ok) storage(ls => ls.removeItem(INIT_KEY));   // доступ закрыли — забываем экран
     shownRole = null;
@@ -1594,6 +1621,7 @@ async function submitOrder() {
   if (!items.length) return alert_('Отметьте кнопки или впишите, что нужно.');
   if (!inTg || !apiReady) return alert_('Откройте форму через бота в Телеграме.');
   setBusy(true);
+  setSyncStatus('Отправляем заявку в список закупки…', '', 'orderSyncStatus');
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -1607,9 +1635,16 @@ async function submitOrder() {
     renderQtyRows('orderChips');
     $('orderNow').value = '';
     setOrderedToday(data.orderedToday);
+    setSyncStatus(data.deliveryError
+      ? 'Заявка добавлена в список; сообщение закупщику не отправлено: ' + data.deliveryError
+      : (data.sent ? 'Заявка добавлена и отправлена закупщику.' : 'Заявка добавлена в список закупки.'),
+      data.deliveryError ? 'warn' : 'ok', 'orderSyncStatus');
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    await alert_(data.sent ? 'Заявка отправлена закупщику ✅' : 'Заявка добавлена в список закупки ✅');
+    await alert_(data.deliveryError
+      ? 'Заявка добавлена в список закупки, но сообщение закупщику не ушло.\nПричина: ' + data.deliveryError
+      : (data.sent ? 'Заявка отправлена закупщику ✅' : 'Заявка добавлена в список закупки ✅'));
   } catch (e) {
+    setSyncStatus('Не удалось подтвердить результат. Проверьте список закупки перед повтором.', 'warn', 'orderSyncStatus');
     await alert_('Не получилось отправить заявку: ' + e.message + '\nПроверьте интернет и попробуйте ещё раз.');
   } finally {
     setBusy(false);
@@ -2892,7 +2927,9 @@ async function submit() {
   if (!inTg) return alert_('Откройте форму через бота в Телеграме — иначе отчёт не отправится.');
   if (!apiReady) return alert_('Форма ещё не подключена к таблице (не указан API_URL).');
 
+  const draftSaved = !editing && saveDraft();
   setBusy(true);
+  setSyncStatus(editing ? 'Отправляем исправление…' : 'Отправляем отчёт в таблицу…');
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -2902,20 +2939,38 @@ async function submit() {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
     if (data.unchanged) return alert_('Вы ничего не изменили — исправлять нечего.');
+    if (data.duplicate && !editing) {
+      clearDraft();
+      reportId = newId();
+      setSyncStatus('Отчёт уже есть в таблице; повторную запись не создавал. Проверьте общий чат.', 'warn');
+      await alert_('Этот отчёт уже сохранён в таблице, повторную запись не создавал. Проверьте общий чат: если сообщения там нет, сообщите владельцу.');
+      if (tg) tg.close();
+      return;
+    }
     if (!editing) {
       clearDraft();
       storage(ls => ls.setItem(BARISTA_KEY, fields.barista.value === '__other' ? '' : fields.barista.value));
       reportId = newId();
     }
+    setSyncStatus(data.sent === false
+      ? 'Отчёт сохранён в таблице, но Telegram подтвердил не все сообщения или фото.'
+      : (editing ? 'Исправление сохранено и отправлено.' : 'Отчёт сохранён и отправлен.'), data.sent === false ? 'warn' : 'ok');
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     const msg = data.sent === false
-      ? 'Сохранено в таблицу, но сообщение в чат не ушло. Сообщите владельцу.'
+      ? 'Отчёт сохранён в таблицу, но доставка сообщений или фото не подтверждена.' + (data.deliveryError ? '\nПричина: ' + data.deliveryError : '') + '\nСообщите владельцу; повторно отправлять отчёт не нужно.'
       : editing ? 'Исправление сохранено ✅' : 'Отчёт отправлен ✅ Спасибо за смену!';
     await alert_(msg);
     if (tg) tg.close();
   } catch (e) {
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    await alert_('Не получилось отправить: ' + e.message + '\n\nПроверьте интернет и нажмите ещё раз — введённое не потеряется.');
+    setSyncStatus('Не удалось подтвердить результат. ' + (editing
+      ? 'Не закрывайте форму; проверьте отчёт перед повторной отправкой.'
+      : (draftSaved ? 'Черновик сохранён на этом устройстве; повторная отправка с тем же ID защитит от дубля.'
+        : 'Не закрывайте форму; локальное сохранение не подтвердилось.')), 'warn');
+    await alert_('Не удалось подтвердить отправку: ' + e.message + '\n\n' + (editing
+      ? 'Исправление могло сохраниться. Проверьте отчёт перед повторной отправкой.'
+      : (draftSaved ? 'Черновик сохранён. Проверьте вкладку «Отчёты» перед повтором; повторная отправка не создаст дубль.'
+        : 'Локальный черновик не подтверждён. Не закрывайте форму; проверьте вкладку «Отчёты» перед повтором.')));
   } finally {
     setBusy(false);
   }
@@ -3115,11 +3170,14 @@ async function billPost(body, okText) {
   setBusy(true);
   try {
     billData = await api(body);
+    const deliveryError = billData.deliveryError;
+    delete billData.deliveryError;
     tabCachePut('bills', billData);
     closeItem();
     renderBills();
     haptic('success');
-    if (okText) await alert_(okText);
+    if (deliveryError) await alert_('Изменение сохранено в таблице, но сообщение или фото не доставлено в Telegram. Не отправляйте заново; сообщите владельцу.\nПричина: ' + deliveryError);
+    else if (okText) await alert_(okText);
     return true;
   } catch (e) {
     await alert_('Не получилось: ' + e.message);
@@ -3432,6 +3490,8 @@ async function ideaPost(body, then) {
   setBusy(true);
   try {
     repairData = await api(body);
+    const deliveryError = repairData.deliveryError;
+    delete repairData.deliveryError;
     tabCachePut('repair', repairData);
     renderRepairs();
     haptic('success');
@@ -3531,7 +3591,8 @@ async function repairPost(body, okText) {
     closeItem();
     renderRepairs();
     haptic('success');
-    if (okText) await alert_(okText);
+    if (deliveryError) await alert_('Запись сохранена в таблице, но сообщение или фото не доставлено в Telegram. Не отправляйте действие заново; сообщите владельцу.\nПричина: ' + deliveryError);
+    else if (okText) await alert_(okText);
     return true;
   } catch (e) {
     await alert_('Не получилось: ' + e.message);
