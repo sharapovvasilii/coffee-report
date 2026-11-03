@@ -297,6 +297,60 @@
   .gate p { color: #7a7a7a; font-size: 13px; margin: 0 0 16px; max-width: 320px; }
   .gate input, .gate .btn { width: 100%; max-width: 320px; }
   .gate input { text-align: center; }
+
+  /* Сколько нужно — под нажатыми кнопками заявки */
+  .qty-list { margin: 0 0 8px; }
+  .qty-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+  .qty-row > span { flex: 1; min-width: 0; font-size: 14px; }
+  .qty-row input { width: 76px; flex: none; text-align: center; font-size: 14px; padding: 7px 6px; }
+  .qty-row select { width: 78px; flex: none; font-size: 14px; padding: 7px 6px; text-align: center; text-align-last: center; }
+  .pitem small { font-weight: 400; opacity: .85; margin-left: 4px; }
+  .sheet .qty-row select { width: 78px; text-align: center; text-align-last: center; }
+
+  /* Счета */
+  #billScreen textarea { margin: 6px 0; }
+  #billScreen .btn { margin-top: 4px; }
+  .bill-field { display: block; width: 100%; margin: 6px 0; }
+  .bill-sum { font-weight: 700; white-space: nowrap; }
+  .bill-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid #f0f0ef; cursor: pointer; }
+  .bill-item:first-child { border-top: 0; }
+  .bill-main { flex: 1; min-width: 0; }
+  .bill-what { font-weight: 600; }
+  .bill-main small { display: block; color: var(--hint); font-size: 12px; margin-top: 2px; }
+  .bill-go { color: var(--hint); font-size: 22px; }
+  .sheet-text { font-size: 15px; margin: 6px 0; white-space: pre-line; }
+  .bill-photo { width: 100%; border-radius: 12px; margin: 6px 0; display: block; cursor: zoom-in; }
+
+  /* Нажатие видно сразу: при отправке — крутилка и «Отправляю…» */
+  .btn.pending { opacity: .8; }
+  .btn.pending::before {
+    content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Фото на весь экран: двумя пальцами — увеличить */
+  .pv { position: fixed; inset: 0; z-index: 1000; background: #000; touch-action: none; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; }
+  .pv img { max-width: 100%; max-height: 100%; transform-origin: center center; user-select: none; -webkit-user-select: none;
+    -webkit-user-drag: none; will-change: transform; }
+  .pv-x { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border-radius: 22px;
+    border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 22px; line-height: 44px; z-index: 2; }
+  .pv-hint { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.6); color: #fff; font-size: 13px; padding: 6px 12px; border-radius: 14px; white-space: nowrap;
+    pointer-events: none; z-index: 2; }
+
+  /* Моя з/п */
+  #myPayBody > .note { padding: 0 12px; }
+  .my-total { text-align: center; padding: 12px; }
+  .my-total .big { color: var(--accent); }
+  .my-wait { color: var(--hint); font-size: 12px; font-weight: 600; }
+  .my-part { color: var(--warn); font-size: 12px; font-weight: 600; }
+  .my-sum { white-space: nowrap; flex: none; font-size: 17px; }
+  .my-units .pay-unit:first-child { border-top: none; }
+  .my-units .pay-line { cursor: default; }
+  .my-shift { padding: 4px 0 !important; }
+  .my-shift small { display: block; color: var(--hint); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -314,6 +368,8 @@
 <div class="card seg tabs" id="tabs" hidden>
   <button type="button" class="seg-btn" data-tab="report" hidden>Отчёт</button>
   <button type="button" class="seg-btn" data-tab="order" hidden>Заявка</button>
+  <button type="button" class="seg-btn" data-tab="bills" hidden>Счета</button>
+  <button type="button" class="seg-btn" data-tab="mypay" hidden>Моя з/п</button>
   <button type="button" class="seg-btn" data-tab="buy" hidden>Закупка</button>
   <button type="button" class="seg-btn" data-tab="rev" hidden>Выручка</button>
   <button type="button" class="seg-btn" data-tab="pay" hidden>Зарплата</button>
@@ -396,7 +452,8 @@
   <p class="note today-note" id="orderedTodayNote" hidden></p>
   <p class="note swipe-hint chip-hint" hidden>Зажмите кнопку — можно изменить название и единицу. Смахните вбок — убрать.</p>
   <div class="chips" id="chips"></div>
-  <textarea id="orderText" placeholder="Что еще нужно - каждое с новой строки"></textarea>
+  <div class="qty-list" id="chipsQty"></div>
+  <textarea id="orderText" placeholder="Что еще нужно - каждое с новой строки, например «Молоко 5 л»"></textarea>
 </div>
 
 <h2 class="sec">Отзыв гостей</h2>
@@ -470,10 +527,46 @@
     <p class="note today-note" id="orderedTodayNote2" hidden></p>
     <p class="note swipe-hint chip-hint" hidden>Зажмите кнопку — можно изменить название и единицу. Смахните вбок — убрать.</p>
     <div class="chips" id="orderChips"></div>
-    <textarea id="orderNow" placeholder="Что еще нужно - каждое с новой строки"></textarea>
+    <div class="qty-list" id="orderQty"></div>
+    <textarea id="orderNow" placeholder="Что еще нужно - каждое с новой строки, например «Молоко 5 л»"></textarea>
   </div>
   <button id="sendOrderBtn" class="btn" type="button" hidden>Отправить заявку</button>
 </main>
+
+<!-- Счета: присылают бариста и владелец, оплачивает владелец -->
+<main id="billScreen" hidden>
+  <header>
+    <h1>Счета</h1>
+    <div class="sub">Фото счёта и от кого — владелец оплатит</div>
+  </header>
+  <h2 class="sec">Новый счёт</h2>
+  <div class="card">
+    <div class="ph-head"><b>Фото счёта</b><small>Обязательно</small></div>
+    <div class="photos" id="billPhotos"></div>
+    <input type="file" id="billPhotoInput" accept="image/*" multiple hidden>
+    <input type="text" class="bill-field" id="billFrom" maxlength="100" autocomplete="off" placeholder="От кого счёт — например «Молочная ферма»">
+    <input type="text" class="bill-field" id="billSum" inputmode="decimal" autocomplete="off" placeholder="Сумма, ₽ (если знаете)">
+    <textarea id="billNote" placeholder="Комментарий — за что, до какого числа оплатить (можно не писать)"></textarea>
+    <button type="button" class="btn" id="billSend">Отправить счёт</button>
+  </div>
+  <div id="billList"></div>
+</main>
+
+<!-- Моя з/п: своя невыплаченная зарплата (бариста) -->
+<main id="myPayScreen" hidden>
+  <header>
+    <h1>Моя з/п</h1>
+    <div class="sub" id="myPaySub">Сколько вам ещё не выплатили</div>
+  </header>
+  <div id="myPayBody"></div>
+</main>
+
+<!-- Фото счёта на весь экран -->
+<div class="pv" id="photoView" hidden>
+  <img id="pvImg" alt="Фото">
+  <button type="button" class="pv-x" id="pvClose" aria-label="Закрыть">✕</button>
+  <div class="pv-hint">Двумя пальцами — увеличить</div>
+</div>
 
 <!-- Окно снизу: правка кнопки заявки, карточка товара и магазина -->
 <div class="sheet-bg" id="itemSheet" hidden>
@@ -560,7 +653,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-02.3';
+const APP_VERSION = '2026-11-03.1';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -775,6 +868,7 @@ function collect() {
     baristaFeedback: v('baristaFeedback'),
     gis2: num(v('gis2')),
     orderTyped,
+    orderQty: pickedQty('chips'),   // сколько нужно — у кнопок; у вписанного вручную сервер отделит сам
     cash: num(v('cash')), card: num(v('card')), incass: num(v('incass')),
     refundCash: num(v('refundCash')), refundCard: num(v('refundCard')),
     cashStart: num(v('cashStart')), cashEnd: num(v('cashEnd')),
@@ -820,6 +914,7 @@ function saveDraft() {
     expenses: [...document.querySelectorAll('.exp')].map(r => ({
       name: r.querySelector('.exp-name').value, sum: r.querySelector('.exp-sum').value })),
     chips: [...document.querySelectorAll('#chips .chip[aria-pressed="true"]')].map(c => c.dataset.item),
+    qty: qtyState.chips,
     pairMode,
   };
   for (const k in fields) d.fields[k] = fields[k].value;
@@ -840,6 +935,8 @@ function restoreDraft() {
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
   draftChips = new Set(d.chips || []);
   document.querySelectorAll('#chips .chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
+  qtyState.chips = d.qty && typeof d.qty === 'object' ? d.qty : {};
+  renderQtyRows('chips');
   pairMode = typeof d.pairMode === 'boolean' ? d.pairMode : !!fields.barista2.value;
   updateBaristaRows();
   return true;
@@ -934,6 +1031,8 @@ function showScreen(name) {
   $('buyer').hidden = name !== 'buyer';
   $('revScreen').hidden = name !== 'revenue';
   $('payScreen').hidden = name !== 'salary';
+  $('billScreen').hidden = name !== 'bills';
+  $('myPayScreen').hidden = name !== 'mypay';
   updateMainButton();
   // В списке закупки товары перетаскивают пальцем — отключаем «смахнуть вниз, чтобы закрыть»
   try {
@@ -1068,6 +1167,29 @@ function showApp(data, fresh) {
   // Владельцу — выручку за все периоды заранее, в фоне: к открытию вкладки цифры уже готовы
   if (fresh && data.role === 'owner' && !revLoaded) preloadRevenue();
   if (fresh && data.role === 'owner' && !payLoaded) pickPayPreset('week', true);   // зарплату — тоже заранее
+  if (fresh) preloadTabs(data.role);
+}
+
+// Телефон помнит последний ответ вкладок «Счета» и «Моя з/п»: показываем сразу, свежее подтягиваем в фоне.
+// Только для этого же человека.
+const TAB_KEYS = { bills: 'shift-report-bills-v1', mypay: 'shift-report-mypay-v1' };
+function tabCacheGet(tab) {
+  const c = storage(ls => JSON.parse(ls.getItem(TAB_KEYS[tab]) || 'null'));
+  return c && c.uid === myTgId() ? c.data : null;
+}
+function tabCachePut(tab, data) {
+  storage(ls => ls.setItem(TAB_KEYS[tab], JSON.stringify({ uid: myTgId(), data })));
+}
+
+// После открытия приложения — заранее, в фоне: к открытию вкладки данные уже есть
+let tabsPreloaded = false;
+function preloadTabs(role) {
+  if (tabsPreloaded || role === 'buyer') return;   // закупщик счета и з/п не видит
+  tabsPreloaded = true;
+  setTimeout(() => {
+    loadBills();
+    if (role !== 'owner') loadMyPay();
+  }, 1500);
 }
 
 async function init() {
@@ -1098,11 +1220,14 @@ async function init() {
 
 /* ---------- вкладки: бариста — Отчёт/Заявка, владелец — ещё Закупка и Выручка ---------- */
 
-const TAB_SCREENS = { report: 'form', order: 'order', buy: 'buyer', rev: 'revenue', pay: 'salary' };
+const TAB_SCREENS = { report: 'form', order: 'order', bills: 'bills', mypay: 'mypay', buy: 'buyer', rev: 'revenue',
+  pay: 'salary' };
 
+// Бариста: Отчёт, Заявка, Счета, Моя з/п. Владелец: Отчёт, Заявка, Счета, Закупка, Выручка, Зарплата.
+// Закупщик: Закупка, Заявка (счетов не видит).
 function setupTabs(role) {
-  const show = role === 'owner' ? ['report', 'order', 'buy', 'rev', 'pay']
-    : role === 'buyer' ? ['buy', 'order'] : ['report', 'order'];
+  const show = role === 'owner' ? ['report', 'order', 'bills', 'buy', 'rev', 'pay']
+    : role === 'buyer' ? ['buy', 'order'] : ['report', 'order', 'bills', 'mypay'];
   const bar = $('tabs');
   bar.querySelectorAll('.seg-btn').forEach(b => {
     b.hidden = !show.includes(b.dataset.tab);
@@ -1132,6 +1257,8 @@ function setTab(tab) {
   showScreen(TAB_SCREENS[tab]);
   if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
   if (tab === 'order') buildOrderChips();
+  if (tab === 'bills') loadBills();
+  if (tab === 'mypay') loadMyPay();
   if (tab === 'buy') refreshPurchase();
   if (tab === 'rev' && !revLoaded) pickPreset('week');
   if (tab === 'pay' && !payLoaded) pickPayPreset('week');
@@ -1161,9 +1288,77 @@ function buildOrderChips() {
       if (b.dataset.swiped) { delete b.dataset.swiped; return; }   // только что смахивали — это не нажатие
       b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
       if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+      renderQtyRows('orderChips');
     });
     if (canEditChips()) enableSwipeDelete(b);
     box.appendChild(b);
+  });
+  renderQtyRows('orderChips');
+}
+
+/* ---------- сколько нужно: строка «сколько + единица» под нажатыми кнопками ---------- */
+// Необязательно: пусто — значит количество не указали. Вписанное вручную «Молоко 5 л» сервер делит сам.
+
+const QTY_UNITS = ['шт', 'кг', 'г', 'л', 'кор', 'уп', 'пачка', 'банка', 'бут', 'ящ', 'мешок'];
+const qtyState = { chips: {}, orderChips: {} };       // { товар: { n: '5', u: 'кг' } }
+const QTY_BOX = { chips: 'chipsQty', orderChips: 'orderQty' };
+
+// В чём считаем товар: единица кнопки, иначе — из товарного учёта, иначе «шт»
+function unitOf(item) {
+  const info = orderInfo[item] || {};
+  const st = (config.stock || []).find(x => x.name.toLowerCase() === String(item).toLowerCase());
+  return String(info.unit || (st && st.unit) || 'шт').trim().toLowerCase() || 'шт';
+}
+
+function qtyRow(label, cur, onSave) {
+  const row = el('div', 'qty-row');
+  const n = el('input');
+  n.inputMode = 'decimal'; n.autocomplete = 'off'; n.maxLength = 7; n.placeholder = 'сколько';
+  n.setAttribute('aria-label', `Сколько: ${label}`);
+  n.value = cur.n || '';
+  const u = el('select');
+  u.setAttribute('aria-label', `Единица: ${label}`);
+  QTY_UNITS.concat(QTY_UNITS.includes(cur.u) ? [] : [cur.u]).forEach(x => u.add(new Option(x, x)));
+  u.value = cur.u;
+  const save = () => {
+    n.value = n.value.replace(/[^\d.,]/g, '');
+    if (onSave) onSave(n.value, u.value);
+  };
+  n.addEventListener('input', save);
+  u.addEventListener('change', save);
+  row.append(el('span', null, label), n, u);
+  return { row, n, u };
+}
+
+function renderQtyRows(boxId) {
+  const q = qtyState[boxId];
+  const rows = [...$(boxId).querySelectorAll('.chip[aria-pressed="true"]')].map(c => {
+    const item = c.dataset.item;
+    return qtyRow(item, q[item] || { n: '', u: unitOf(item) }, (n, u) => {
+      q[item] = { n, u };
+      if (boxId === 'chips') saveDraftSoon();
+    }).row;
+  });
+  $(QTY_BOX[boxId]).replaceChildren(...rows);
+}
+
+// { товар: '5 кг' } — только у нажатых кнопок, где написали количество
+function pickedQty(boxId) {
+  const q = qtyState[boxId];
+  const out = {};
+  [...$(boxId).querySelectorAll('.chip[aria-pressed="true"]')].forEach(c => {
+    const x = q[c.dataset.item];
+    if (x && x.n) out[c.dataset.item] = x.n + ' ' + x.u;
+  });
+  return out;
+}
+
+// Кнопку переименовали — количество переезжает на новое название
+function renameQty(oldName, newName) {
+  Object.values(qtyState).forEach(q => {
+    if (!q[oldName]) return;
+    if (newName) q[newName] = q[oldName];
+    delete q[oldName];
   });
 }
 
@@ -1300,6 +1495,7 @@ async function itemPost(body, oldName, newName) {
   try {
     const data = await api(body);
     closeItem();
+    renameQty(oldName, newName);
     ['#chips', '#orderChips'].forEach(sel => {
       document.querySelectorAll(sel + ' .chip').forEach(c => {
         if (c.dataset.item !== oldName) return;
@@ -1312,6 +1508,7 @@ async function itemPost(body, oldName, newName) {
     applyLearned(data.orderItems);
     enableChipEditing();
     if (screen === 'order') buildOrderChips();
+    renderQtyRows('chips');
     saveDraftSoon();
     haptic('success');
   } catch (e) {
@@ -1325,6 +1522,7 @@ async function submitOrder() {
   if (busy) return;
   const picked = [...$('orderChips').querySelectorAll('.chip[aria-pressed="true"]')].map(c => c.dataset.item);
   const typed = $('orderNow').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const qty = pickedQty('orderChips');
   const items = picked.concat(typed);
   if (!items.length) return alert_('Отметьте кнопки или впишите, что нужно.');
   if (!inTg || !apiReady) return alert_('Откройте форму через бота в Телеграме.');
@@ -1333,11 +1531,13 @@ async function submitOrder() {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ initData, action: 'order', items, typed }),
+      body: JSON.stringify({ initData, action: 'order', items, typed, qty }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
     $('orderChips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+    qtyState.orderChips = {};
+    renderQtyRows('orderChips');
     $('orderNow').value = '';
     setOrderedToday(data.orderedToday);
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
@@ -1400,7 +1600,7 @@ function renderStockView(sv) {
     const row = el('div', 'srow' + (low ? ' low' : ''));
     const span = el('span', null, `${x.name} / ${x.unit}`);
     if (low) span.appendChild(el('small', null, `мало — минимум ${x.min}`));
-    const add = toolBtn('+', 'Добавить в список закупки', false, () => addItem(x.name));
+    const add = toolBtn('+', 'Добавить в список закупки', false, () => askStockQty(x));
     add.classList.add('add-tool');
     // Не заполнили в последнем отчёте — показываем прошлое количество с датой, а не «-»
     const val = el('b', 'sval', x.value == null ? '—' : String(x.value));
@@ -1413,6 +1613,7 @@ function renderStockView(sv) {
 
 function itemButton(x) {
   const b = el('button', 'pitem' + (x.bought ? ' done' : ''), x.name);
+  if (x.qty) b.appendChild(el('small', null, '· ' + x.qty));
   b.type = 'button';
   b.dataset.name = x.name;
   if (x.source) b.title = x.source;
@@ -1588,6 +1789,7 @@ function openItem(x) {
   body.textContent = '';
   body.appendChild(el('h2', null, x.name));
   body.appendChild(el('div', 'grp', [x.unit ? 'считаем в: ' + x.unit : '', x.source].filter(Boolean).join(' · ')));
+  if (x.qty) body.appendChild(el('div', 'sheet-text', '📦 Сколько: ' + x.qty));
   const list = x.stores || [];
   const reopen = () => { const y = purchase.find(i => i.name === x.name); if (y) openItem(y); };
   if (!list.length) body.appendChild(el('div', 'note', 'Магазин не указан — выберите или впишите ниже.'));
@@ -1773,20 +1975,54 @@ function returnItem(x) {
   purchaseOp({ op: 'need', id: x.id }, () => { x.bought = true; purchase = before; });
 }
 
-function addItem(fromStock) {
+// qty — «5 кг» из окна «Сколько нужно» (товарный учёт); у вписанного вручную количество сервер берёт из текста
+function addItem(fromStock, qty) {
   const input = $('newItem');
   const typed = typeof fromStock !== 'string';
   const name = (typed ? input.value : fromStock).trim();
   if (name.length < 2) return alert_('Напишите название товара.');
   const same = purchase.find(i => i.name.toLowerCase() === name.toLowerCase());
-  if (same && !same.bought) { if (typed) input.value = ''; return alert_(`«${same.name}» уже есть в списке.`); }
-  if (!typed && tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+  // Товар уже в списке: из учёта с количеством — допишем количество («5 кг + 3 кг»), иначе — подсказка
+  if (same && !same.bought && !qty) { if (typed) input.value = ''; return alert_(`«${same.name}» уже есть в списке.`); }
+  if (!typed) haptic('success');
   const before = purchase.slice();
-  if (same) moveItem(same, false);
-  else purchase.push({ id: 'new', name, bought: false, sec: 'other', ord: 1e9 });
+  const wasQty = same ? same.qty : '';
+  const wasBought = same ? same.bought : false;
+  if (same) {
+    if (wasBought) moveItem(same, false);
+    if (qty) same.qty = same.qty && !wasBought ? same.qty + ' + ' + qty : qty;
+    else if (wasBought) same.qty = '';
+  } else purchase.push({ id: 'new', name, qty: qty || '', bought: false, sec: 'other', ord: 1e9, stores: [] });
   if (typed) input.value = '';
   renderPurchase();
-  purchaseOp({ op: 'add', name }, () => { if (same) same.bought = true; purchase = before; });
+  purchaseOp({ op: 'add', name, qty: qty || '' },
+    () => { if (same) { same.qty = wasQty; same.bought = wasBought; } purchase = before; });
+}
+
+// «+» в товарном учёте — сначала спросим, сколько нужно (как в заявке; можно не указывать)
+function askStockQty(x) {
+  haptic('light');
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, x.name));
+  body.appendChild(el('div', 'grp', x.value == null ? 'Остаток не считали' : `Остаток: ${x.value} ${x.unit || ''}`.trim()));
+  const unit = String(x.unit || 'шт').trim().toLowerCase() || 'шт';
+  const q = qtyRow(x.name, { n: '', u: unit });
+  q.row.firstChild.textContent = 'Сколько нужно';
+  body.appendChild(q.row);
+  body.appendChild(el('div', 'note', 'Можно не указывать.'));
+  const ok = el('button', 'btn', 'Добавить в список');
+  ok.type = 'button';
+  ok.addEventListener('click', () => {
+    closeItem();
+    addItem(x.name, q.n.value ? q.n.value + ' ' + q.u.value : '');
+  });
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.append(ok, close);
+  $('itemSheet').hidden = false;
+  setTimeout(() => q.n.focus(), 50);
 }
 
 async function clearBought() {
@@ -2431,10 +2667,18 @@ function startEdit(ed) {
   const chipMap = {};
   document.querySelectorAll('#chips .chip').forEach(c => { chipMap[c.dataset.item.toLowerCase()] = c; c.setAttribute('aria-pressed', 'false'); });
   const typed = [];
+  const oq = r.orderQty || {};
+  qtyState.chips = {};
   (r.order || []).forEach(item => {
     const c = chipMap[String(item).toLowerCase()];
-    if (c) c.setAttribute('aria-pressed', 'true'); else typed.push(item);
+    const qty = oq[item] || '';
+    if (c) {
+      c.setAttribute('aria-pressed', 'true');
+      const m = /^(\S+)\s*(.*)$/.exec(qty);
+      if (m) qtyState.chips[c.dataset.item] = { n: m[1], u: m[2] || unitOf(c.dataset.item) };
+    } else typed.push(qty ? item + ' ' + qty : item);
   });
+  renderQtyRows('chips');
   put('orderText', typed.join('\n'));
 
   photos.length = 0;
@@ -2471,6 +2715,7 @@ function addChip(item) {
     if (b.dataset.swiped) { delete b.dataset.swiped; return; }   // только что смахивали — это не нажатие
     b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
     if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    renderQtyRows('chips');
     saveDraftSoon();
   });
   if (canEditChips()) enableSwipeDelete(b);
@@ -2486,6 +2731,7 @@ function applyLearned(items) {
     if (!keep.has(c.dataset.item.toLowerCase()) && c.getAttribute('aria-pressed') !== 'true') c.remove();
   });
   items.forEach(addChip);
+  renderQtyRows('chips');   // кнопки из черновика могли стать нажатыми — показываем их «сколько»
 }
 
 async function requestAccess() {
@@ -2606,6 +2852,402 @@ async function submit() {
   } finally {
     setBusy(false);
   }
+}
+
+/* ---------- счета: присылают бариста и владелец, оплачивает владелец ---------- */
+
+function btnPending(btn, on, text) {
+  if (!btn) return;
+  if (on) {
+    btn.dataset.label = btn.textContent;
+    btn.textContent = text || 'Отправляю…';
+    btn.classList.add('pending');
+    btn.disabled = true;
+  } else {
+    if (btn.dataset.label) btn.textContent = btn.dataset.label;
+    btn.classList.remove('pending');
+    btn.disabled = false;
+  }
+}
+
+// Набор фото: плитки + кнопка «+». Фото хранятся уменьшенными JPEG (data:URL).
+function photoSet(boxId, inputId, max) {
+  const set = {
+    list: [],
+    mount() {
+      $(inputId).addEventListener('change', e => { set.add(e.target.files); e.target.value = ''; });
+      set.render();
+    },
+    async add(files) {
+      for (const f of [...files]) {
+        if (set.list.length >= max) { await alert_(`Можно не больше ${max} фото.`); break; }
+        try { set.list.push(await shrinkImage(f)); }
+        catch (e) { await alert_(e.message); }
+      }
+      set.render();
+    },
+    clear() { set.list.length = 0; set.render(); },
+    render() {
+      const box = $(boxId);
+      box.textContent = '';
+      set.list.forEach((src, i) => {
+        const d = el('div', 'ph');
+        const img = el('img'); img.src = src; img.alt = `Фото ${i + 1}`;
+        const x = el('button', 'del', '×'); x.type = 'button';
+        x.setAttribute('aria-label', 'Удалить фото');
+        x.addEventListener('click', () => { set.list.splice(i, 1); set.render(); });
+        d.append(img, x);
+        box.appendChild(d);
+      });
+      const plus = set.list.length >= max ? 0 : Math.max(1, 4 - set.list.length);
+      for (let k = 0; k < plus; k++) {
+        const b = el('button', 'ph add', '+'); b.type = 'button';
+        b.setAttribute('aria-label', 'Добавить фото');
+        b.addEventListener('click', () => $(inputId).click());
+        box.appendChild(b);
+      }
+    },
+  };
+  return set;
+}
+
+let billData = null;   // { open: [...], openSum, paid: [...] }
+const billPhotos = photoSet('billPhotos', 'billPhotoInput', 6);
+billPhotos.mount();
+
+async function loadBills() {
+  if (!inTg || !apiReady) return;
+  if (!billData) {
+    const cached = tabCacheGet('bills');
+    if (cached) { billData = cached; renderBills(); }
+    else $('billList').replaceChildren(el('div', 'loading-note', 'Загружаю…'));
+  }
+  try {
+    const res = await fetch(`${API_URL}?action=bills&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!Array.isArray(data.open)) throw new Error('на сервере старый Code.gs — обновите его в Apps Script.');
+    tabCachePut('bills', data);
+    if (JSON.stringify(data) !== JSON.stringify(billData)) { billData = data; renderBills(); }
+  } catch (e) {
+    if (!billData) $('billList').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+  }
+}
+
+function billItem(x) {
+  const row = el('div', 'bill-item');
+  const main = el('div', 'bill-main');
+  main.appendChild(el('div', 'bill-what', x.from || 'Счёт'));
+  const bits = [x.status === 'оплачен' ? `оплачен ${x.paidAt} · ${x.paidBy}` : `${x.date} · ${x.who}`];
+  if (x.photos) bits.push(`📷 ${x.photos}`);
+  main.appendChild(el('small', null, bits.join(' · ')));
+  row.appendChild(main);
+  if (x.sum != null) row.appendChild(el('span', 'bill-sum', fmt(x.sum) + ' ₽'));
+  row.appendChild(el('span', 'bill-go', '›'));
+  row.addEventListener('click', () => openBill(x));
+  return row;
+}
+
+function renderBills() {
+  const d = billData;
+  const out = [];
+  out.push(el('h2', 'sec', `Не оплачены${d.open.length ? ' · ' + d.open.length : ''}` +
+    (d.openSum ? ` · ${fmt(d.openSum)} ₽` : '')));
+  const open = el('div', 'card');
+  if (!d.open.length) open.appendChild(el('div', 'note', 'Неоплаченных счетов нет 👍'));
+  d.open.forEach(x => open.appendChild(billItem(x)));
+  out.push(open);
+  if (d.paid.length) {
+    out.push(el('h2', 'sec', 'Оплаченные'));
+    const done = el('div', 'card');
+    d.paid.forEach(x => done.appendChild(billItem(x)));
+    out.push(done);
+  }
+  $('billList').replaceChildren(...out);
+}
+
+// Фото счёта — по нажатию, через сервер
+function billPhotoLoader(x) {
+  const wrap = el('div');
+  if (!x.photos) return wrap;
+  const label = `📷 Фото счёта (${x.photos})`;
+  const btn = el('button', 'btn btn-light', label);
+  btn.type = 'button';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = 'Загружаю фото…';
+    try {
+      for (let n = 0; n < x.photos; n++) {
+        const res = await fetch(`${API_URL}?action=billPhoto&id=${encodeURIComponent(x.id)}&n=${n}&initData=${encodeURIComponent(initData)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+        const img = el('img', 'bill-photo');
+        img.src = data.data; img.alt = `Фото счёта ${n + 1}`;
+        img.addEventListener('click', () => openPhotoView(img.src));
+        wrap.appendChild(img);
+      }
+      wrap.appendChild(el('div', 'note', 'Нажмите на фото, чтобы открыть на весь экран и увеличить.'));
+      btn.remove();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = label;
+      alert_('Не удалось загрузить фото: ' + e.message);
+    }
+  });
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+function openBill(x) {
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.appendChild(el('h2', null, x.from || 'Счёт'));
+  body.appendChild(el('div', 'grp', `${x.date} · прислал(а) ${x.who}`));
+  if (x.sum != null) body.appendChild(el('div', 'sheet-text', `💰 Сумма: ${fmt(x.sum)} ₽`));
+  if (x.note) body.appendChild(el('div', 'sheet-text', '📝 ' + x.note));
+  body.appendChild(billPhotoLoader(x));
+  if (x.status === 'оплачен') {
+    body.appendChild(el('h3', null, '✅ Оплачен'));
+    body.appendChild(el('div', 'grp', `${x.paidAt} · ${x.paidBy}`));
+  }
+  if (myRole === 'owner') {
+    if (x.status === 'оплачен') {
+      const undo = el('button', 'btn btn-light', 'Вернуть в неоплаченные');
+      undo.type = 'button';
+      undo.addEventListener('click', () => billPost({ action: 'billUnpaid', id: x.id }));
+      body.appendChild(undo);
+    } else {
+      const paid = el('button', 'btn', '✅ Оплачено');
+      paid.type = 'button';
+      paid.addEventListener('click', async () => {
+        if (paid.disabled) return;
+        haptic('light');
+        btnPending(paid, true);
+        const ok = await billPost({ action: 'billPaid', id: x.id }, 'Счёт перенесён в оплаченные ✅');
+        if (!ok) btnPending(paid, false);
+      });
+      body.appendChild(paid);
+    }
+    const del = el('button', 'btn btn-light', 'Удалить счёт');
+    del.type = 'button'; del.style.color = 'var(--err)';
+    del.addEventListener('click', async () => {
+      if (!(await confirm_('Удалить этот счёт?'))) return;
+      billPost({ action: 'billDelete', id: x.id });
+    });
+    body.appendChild(del);
+  }
+  const close = el('button', 'btn btn-light', 'Закрыть');
+  close.type = 'button';
+  close.addEventListener('click', closeItem);
+  body.appendChild(close);
+  $('itemSheet').hidden = false;
+}
+
+async function billPost(body, okText) {
+  if (busy) return false;
+  if (!inTg || !apiReady) { alert_('Откройте приложение через бота в Телеграме.'); return false; }
+  setBusy(true);
+  try {
+    billData = await api(body);
+    tabCachePut('bills', billData);
+    closeItem();
+    renderBills();
+    haptic('success');
+    if (okText) await alert_(okText);
+    return true;
+  } catch (e) {
+    await alert_('Не получилось: ' + e.message);
+    return false;
+  } finally {
+    setBusy(false);
+  }
+}
+
+$('billSend').addEventListener('click', async () => {
+  const btn = $('billSend');
+  if (btn.disabled) return;
+  haptic('light');
+  const from = $('billFrom').value.trim();
+  const sum = num($('billSum').value);
+  if (!billPhotos.list.length) return alert_('Сфотографируйте счёт.');
+  if (from.length < 2) return alert_('Напишите, от кого счёт.');
+  if (sum !== null && !(sum > 0)) return alert_('Сумму напишите числом — или оставьте пустой.');
+  btnPending(btn, true);
+  const ok = await billPost({ action: 'billAdd', from, sum, note: $('billNote').value.trim(), photos: billPhotos.list },
+    'Счёт отправлен ✅');
+  btnPending(btn, false);
+  if (ok) { $('billFrom').value = ''; $('billSum').value = ''; $('billNote').value = ''; billPhotos.clear(); }
+});
+
+/* ---------- просмотр фото на весь экран ---------- */
+// Двумя пальцами — увеличить, одним — двигать увеличенное, двойное нажатие — ×2,5 / обратно.
+const pv = { scale: 1, x: 0, y: 0, pts: new Map(), start: null, lastTap: 0 };
+function pvApply() { $('pvImg').style.transform = `translate(${pv.x}px, ${pv.y}px) scale(${pv.scale})`; }
+function pvReset() { pv.scale = 1; pv.x = 0; pv.y = 0; pvApply(); }
+function openPhotoView(src) {
+  $('pvImg').src = src;
+  pvReset();
+  $('photoView').hidden = false;
+  try { if (tg && tg.disableVerticalSwipes) tg.disableVerticalSwipes(); } catch (e) {}
+  haptic('select');
+}
+function closePhotoView() {
+  $('photoView').hidden = true;
+  pv.pts.clear();
+  try { if (tg && tg.enableVerticalSwipes && screen !== 'buyer') tg.enableVerticalSwipes(); } catch (e) {}
+}
+(function setupPhotoView() {
+  const box = $('photoView');
+  $('pvClose').addEventListener('click', e => { e.stopPropagation(); closePhotoView(); });
+  const limit = () => {
+    // Не даём увести фото за край
+    const img = $('pvImg');
+    const mx = Math.max(0, (img.clientWidth * pv.scale - box.clientWidth) / 2);
+    const my = Math.max(0, (img.clientHeight * pv.scale - box.clientHeight) / 2);
+    pv.x = Math.min(mx, Math.max(-mx, pv.x));
+    pv.y = Math.min(my, Math.max(-my, pv.y));
+  };
+  const snapshot = () => {
+    const p = [...pv.pts.values()];
+    pv.start = { scale: pv.scale, x: pv.x, y: pv.y, p };
+    if (p.length >= 2) {
+      pv.start.dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1;
+      pv.start.mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+    }
+  };
+  box.addEventListener('pointerdown', e => {
+    if (e.target.id === 'pvClose') return;
+    box.setPointerCapture(e.pointerId);
+    pv.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    snapshot();
+  });
+  box.addEventListener('pointermove', e => {
+    if (!pv.pts.has(e.pointerId)) return;
+    pv.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const p = [...pv.pts.values()], s = pv.start;
+    if (p.length >= 2 && s.dist) {
+      const dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      const mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+      pv.scale = Math.min(6, Math.max(1, s.scale * dist / s.dist));
+      pv.x = s.x + (mid.x - s.mid.x);
+      pv.y = s.y + (mid.y - s.mid.y);
+    } else if (p.length === 1 && s.p.length === 1 && pv.scale > 1) {
+      pv.x = s.x + (p[0].x - s.p[0].x);
+      pv.y = s.y + (p[0].y - s.p[0].y);
+    }
+    limit();
+    pvApply();
+  });
+  const up = e => {
+    if (!pv.pts.has(e.pointerId)) return;
+    const s = pv.start;
+    const moved = s && s.p.length === 1 && Math.hypot(e.clientX - s.p[0].x, e.clientY - s.p[0].y) > 10;
+    pv.pts.delete(e.pointerId);
+    if (pv.scale < 1.05) pvReset();
+    snapshot();
+    // Двойное нажатие
+    if (!moved && pv.pts.size === 0 && s && s.p.length === 1) {
+      const now = Date.now();
+      if (now - pv.lastTap < 300) {
+        pv.lastTap = 0;
+        if (pv.scale > 1) pvReset();
+        else {
+          const r = box.getBoundingClientRect();
+          pv.scale = 2.5;
+          pv.x = (r.width / 2 - (e.clientX - r.left)) * 1.5;
+          pv.y = (r.height / 2 - (e.clientY - r.top)) * 1.5;
+          limit(); pvApply();
+        }
+      } else pv.lastTap = now;
+    }
+  };
+  box.addEventListener('pointerup', up);
+  box.addEventListener('pointercancel', up);
+  box.addEventListener('wheel', e => {
+    e.preventDefault();
+    pv.scale = Math.min(6, Math.max(1, pv.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    if (pv.scale === 1) { pv.x = 0; pv.y = 0; }
+    limit(); pvApply();
+  }, { passive: false });
+})();
+
+/* ---------- моя з/п: своя невыплаченная зарплата ---------- */
+
+let myPayData = null;   // { name, today, found, daily, units: [{ key, from, to, total, paid, due, shifts }], due }
+
+async function loadMyPay() {
+  if (!inTg || !apiReady) return;
+  if (!myPayData) {
+    const cached = tabCacheGet('mypay');
+    if (cached) { myPayData = cached; renderMyPay(); }
+    else $('myPayBody').replaceChildren(el('div', 'loading-note', 'Загружаю…'));
+  }
+  try {
+    const res = await fetch(`${API_URL}?action=myPay&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!Array.isArray(data.units)) throw new Error('на сервере старый Code.gs — обновите его в Apps Script.');
+    tabCachePut('mypay', data);
+    if (JSON.stringify(data) !== JSON.stringify(myPayData)) { myPayData = data; renderMyPay(); }
+  } catch (e) {
+    if (!myPayData) $('myPayBody').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+  }
+}
+
+function capFirst(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+
+function myUnitLabel(u) {
+  if (u.key.startsWith('неделя:')) {
+    return `неделя ${dmyFull(u.from).slice(0, 5)} – ${dmyFull(u.to).slice(0, 5)} · выдача пн ${dmyFull(isoAdd(u.from, 7)).slice(0, 5)}`;
+  }
+  return `смена ${weekday(u.from)} ${dmyFull(u.from).slice(0, 5)}`;
+}
+
+function renderMyPay() {
+  const d = myPayData;
+  const out = [];
+  $('myPaySub').textContent = d.name ? `${d.name} · сколько ещё не выплачено` : 'Сколько вам ещё не выплатили';
+  if (!d.found) {
+    const card = el('div', 'card');
+    card.appendChild(el('div', 'note', 'Не нашёл вас в списке бариста. Попросите владельца проверить ваше имя на листах «Доступ» и «Бариста».'));
+    $('myPayBody').replaceChildren(card);
+    return;
+  }
+  const top = el('div', 'card my-total');
+  top.append(el('div', 'note', 'К выплате'), el('div', 'big', `${fmt(d.due)} ₽`));
+  if (!d.units.length) top.appendChild(el('div', 'note', 'Сейчас всё выплачено 👍'));
+  out.push(top);
+
+  if (d.units.length) {
+    const card = el('div', 'card my-units');
+    d.units.forEach(u => {
+      const box = el('div', 'pay-unit');
+      const line = el('div', 'pay-line');
+      const left = el('div');
+      left.appendChild(el('b', null, capFirst(myUnitLabel(u))));
+      // Неделя ещё не закончилась — сумма будет расти
+      if (u.key.startsWith('неделя:') && d.today <= u.to) left.appendChild(el('div', 'my-wait', 'неделя ещё идёт — сумма может вырасти'));
+      if (u.paid > 0) left.appendChild(el('div', 'my-part', `уже выдано ${fmt(u.paid)} ₽ из ${fmt(u.total)} ₽`));
+      line.append(left, el('b', 'my-sum', `${fmt(u.due)} ₽`));
+      box.appendChild(line);
+      if (u.shifts && u.shifts.length) {
+        const det = el('div', 'pay-shifts');
+        u.shifts.slice().sort((a, b) => (a.iso < b.iso ? -1 : 1)).forEach(s => {
+          const bits = [`ставка ${fmt(s.base)} (выручка ${fmt(s.rev)}, ${s.two ? 'вдвоём' : 'один'})`];
+          if (s.gis) bits.push(`2ГИС ${fmt(s.gis)}`);
+          if (s.senior) bits.push(`стаж ${fmt(s.senior)}`);
+          const row = el('div', 'my-shift');
+          row.append(el('b', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)} — ${fmt(s.total)} ₽`),
+            el('small', null, bits.join(' + ')));
+          if (s.note) row.appendChild(el('small', null, s.note));
+          det.appendChild(row);
+        });
+        box.appendChild(det);
+      }
+      card.appendChild(box);
+    });
+    out.push(card);
+  }
+  out.push(el('div', 'note', 'Когда зарплату выдадут, она отсюда пропадёт. Если сумма кажется неправильной — скажите владельцу.'));
+  $('myPayBody').replaceChildren(...out);
 }
 
 /* ---------- запуск ---------- */
