@@ -2,15 +2,19 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Отчёт смены</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Inter-ExtraBold.woff2" as="font" type="font/woff2" crossorigin>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <!-- Перетаскивание товаров между отделами (если не загрузится — список всё равно работает) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <style>
+  /* Шрифт Inter лежит рядом с index.html (папка fonts), интернет Google не нужен. Начертания: 400, 600, 800 */
+  @font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/Inter-Regular.woff2") format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/Inter-SemiBold.woff2") format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 800; font-style: normal; font-display: swap; src: url("fonts/Inter-ExtraBold.woff2") format("woff2"); }
   /* Фирменный стиль: всегда светлая тема, оранжевый акцент */
   :root {
     --bg: #eeefec;
@@ -33,13 +37,16 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.35 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font: 16px/1.4 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;   /* цифры одной ширины — суммы в столбик не «пляшут» */
     padding: 14px 14px 100px;
     -webkit-tap-highlight-color: transparent;
   }
+  b, strong { font-weight: 600; }
+  small { line-height: 1.3; }
   /* Заголовки и подписи вне карточек — по одной линии с текстом внутри карточек (отступ карточки 12px) */
   header { padding: 2px 12px 4px; }
-  h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
+  h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -.02em; }
   .sub { color: var(--hint); font-size: 12px; margin-top: 2px; }
   .banner {
     background: rgba(214, 69, 69, .1); color: var(--err);
@@ -47,18 +54,18 @@
   }
 
   /* Заголовки разделов — над карточками */
-  .sec { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; margin: 18px 12px 8px; }
+  .sec { font-size: 18px; font-weight: 800; margin: 18px 12px 8px; }
   main > .note, main > p.note, #payBody > .note, #revBody > .note, #myPayBody > .note, #stockBlock > .note { padding: 0 12px; }
   .card { background: var(--card); border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
-  h3 { font-size: 15px; font-weight: 700; margin: 8px 0 2px; }
+  h3 { font-size: 16px; font-weight: 600; margin: 8px 0 2px; }
   .lbl { margin: 8px 0 2px; }
 
   .row { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 2px 0; }
   .row > span { flex: 1; min-width: 0; }
-  .row small, .srow small { display: block; color: var(--hint); font-size: 11px; margin-top: 1px; }
+  .row small, .srow small { display: block; color: var(--hint); font-size: 12px; margin-top: 1px; }
 
   input, select, textarea {
-    font: inherit; font-size: 15px; color: var(--text);
+    font: inherit; font-size: 16px; color: var(--text);
     background: var(--field); border: 1px solid transparent; border-radius: 8px;
     padding: 7px 10px; outline: none;
   }
@@ -75,7 +82,7 @@
   .pair { display: flex; align-items: center; gap: 6px; color: var(--hint); }
   .pair input { width: 74px; text-align: center; }
   .full { width: 100%; margin: 2px 0 6px; }
-  .row > .total { flex: none; font-weight: 700; padding-right: 10px; }
+  .row > .total { flex: none; font-weight: 600; padding-right: 10px; }
   .status { font-size: 12px; padding: 6px 0 4px; color: var(--hint); }
   .status.ok { color: var(--ok); }
   .status.warn { color: var(--warn); font-weight: 600; }
@@ -94,7 +101,7 @@
   .exp-list { background: var(--field); border-radius: 10px; padding: 4px 10px; margin: 2px 0 6px; font-size: 14px; }
   .exp-day { padding: 6px 0; border-top: 1px solid rgba(0,0,0,.06); }
   .exp-day:first-child { border-top: none; }
-  .exp-day .exp-h { display: flex; justify-content: space-between; font-weight: 700; }
+  .exp-day .exp-h { display: flex; justify-content: space-between; font-weight: 600; }
   .exp-day .exp-i { display: flex; justify-content: space-between; gap: 8px; color: #555; padding: 2px 0 0 10px; }
   .adv-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
   .adv-row input { width: 100px; text-align: right; padding: 6px 8px; font-size: 14px; }
@@ -114,7 +121,7 @@
   .staff-row small { display: block; color: var(--hint); font-size: 12px; }
   .staff-edit { flex: none; width: 36px; height: 36px; border-radius: 18px; border: 0; background: var(--field);
     color: var(--accent); font-size: 18px; padding: 0; }
-  .link { border: 0; color: var(--accent); font: inherit; font-weight: 500; padding: 6px 0; }
+  .link { border: 0; color: var(--accent); font: inherit; font-weight: 600; padding: 6px 0; }
 
   /* Одиночная / парная смена */
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; }
@@ -132,7 +139,7 @@
   /* Заявка */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
   .chip {
-    font: inherit; font-size: 15px; font-weight: 500; border-radius: 8px; padding: 6px 10px;
+    font: inherit; font-size: 16px; font-weight: 600; border-radius: 8px; padding: 6px 10px;
     border: 0; background: var(--chip); color: #fff;
   }
   .chip[aria-pressed="true"] { background: var(--accent); }
@@ -146,18 +153,18 @@
 
   /* Фото чека — плитки */
   .ph-head { margin: 2px 0 8px; }
-  .ph-head b { display: block; font-weight: 700; }
-  .ph-head small { color: var(--hint); font-size: 11px; }
+  .ph-head b { display: block; font-weight: 600; }
+  .ph-head small { color: var(--hint); font-size: 12px; }
   .photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; }
   .ph {
     position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
     background: var(--field); border: 0; padding: 0;
   }
   .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ph.add { font: 300 26px/1 Inter, sans-serif; color: #8a8a8a; cursor: pointer; }
+  .ph.add { font: 400 26px/1 Inter, sans-serif; color: #8a8a8a; cursor: pointer; }
   .ph .del {
-    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
-    border: 0; background: rgba(255, 255, 255, .9); color: #333; font-size: 15px; line-height: 22px; padding: 0;
+    position: absolute; top: 2px; right: 2px; width: 32px; height: 32px; border-radius: 50%;
+    border: 0; background: rgba(255, 255, 255, .9); color: #333; font-size: 18px; line-height: 32px; padding: 0;
   }
 
   .edit-card { border: 1.5px solid var(--accent); padding: 12px; }
@@ -168,14 +175,14 @@
   .sec-row .link { font-size: 14px; }
   .plist { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
   .pitem {
-    font: inherit; font-size: 16px; font-weight: 500; border: 0; border-radius: 10px;
+    font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 10px;
     padding: 11px 14px; background: var(--chip); color: #fff; text-align: left;
   }
   .pitem.done { background: var(--field); color: var(--hint); text-decoration: line-through; font-weight: 400; }
   .note { color: var(--hint); font-size: 14px; margin: 6px 0; }
   .add-row { display: flex; gap: 8px; padding: 8px; }
   .add-row input { flex: 1; min-width: 0; }
-  .btn-small { width: auto; padding: 9px 16px; font-size: 15px; }
+  .btn-small { width: auto; padding: 9px 16px; font-size: 16px; }
   .refresh { display: block; margin: 6px auto 0; }
 
   /* Кнопки заявки: зажать — изменить, смахнуть вбок — убрать (владелец и закупщик) */
@@ -191,10 +198,10 @@
     background: var(--card); width: 100%; border-radius: 18px 18px 0 0; padding: 18px 16px 24px;
     max-height: 85vh; overflow-y: auto; padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
-  .sheet h2 { margin: 0 0 2px; font-size: 21px; font-weight: 800; }
+  .sheet h2 { margin: 0 0 2px; font-size: 22px; font-weight: 800; }
   .sheet input { transform: translateZ(0); }   /* iOS: без этого курсор в окне снизу бывает не виден */
   .sheet select { width: 100%; text-align: left; text-align-last: left; }
-  .sheet .grp { color: var(--hint); font-size: 13px; margin-bottom: 10px; }
+  .sheet .grp { color: var(--hint); font-size: 14px; margin-bottom: 10px; }
   .sheet .btn { margin-top: 10px; }
   .store { background: var(--field); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
   .store b { font-size: 16px; }
@@ -216,8 +223,9 @@
   .psec-title.store-link::after { content: ' ›'; }
 
   /* Вкладки: число столбцов задаётся из кода */
-  .tabs { margin-bottom: 4px; }
-  .tabs .seg-btn { padding: 11px 4px; font-size: 14px; }
+  .tabs { margin-bottom: 4px; position: sticky; top: 6px; z-index: 30;
+    box-shadow: 0 -6px 0 6px var(--bg), 0 4px 12px rgba(0, 0, 0, .06); }
+  .tabs .seg-btn { padding: 12px 4px; font-size: 16px; }
   /* Много вкладок — одна строка, листается вбок */
   .tabs.scroll { display: flex; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .tabs.scroll::-webkit-scrollbar { display: none; }
@@ -226,24 +234,25 @@
   /* Зарплата */
   .pay-person { padding-bottom: 6px; }
   .pay-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 4px 0 6px; }
-  .pay-head b { font-size: 17px; }
+  .pay-head b { font-size: 18px; }
   .pay-head small { display: block; color: var(--hint); font-size: 12px; font-weight: 400; }
   .pay-unit { border-top: 1px solid #f0f0ef; padding: 8px 0; }
   .pay-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; }
   .pay-line small { display: block; color: var(--hint); font-size: 12px; }
+  .pay-sum { display: block; }
   .pay-act { text-align: right; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-  .pay-btn { border: 0; border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 600;
+  .pay-btn { border: 0; border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 14px; font-weight: 600;
     background: var(--accent); color: #fff; white-space: nowrap; }
   .pay-btn:disabled { opacity: .5; }
-  .pay-done { color: var(--ok); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pay-done { color: var(--ok); font-size: 14px; font-weight: 600; white-space: nowrap; }
   .pay-extra { color: var(--warn); font-size: 12px; font-weight: 600; }
   .pay-undo { background: none; border: 0; padding: 2px 0; font: inherit; font-size: 12px; color: var(--hint); text-decoration: underline; }
-  .pay-shifts { font-size: 13px; color: #555; padding: 6px 0 0; }
+  .pay-shifts { font-size: 14px; color: #555; padding: 6px 0 0; }
   .pay-shifts div { padding: 2px 0; }
   .pay-shifts i { color: var(--hint); }
-  .tag { display: inline-block; font-size: 11px; font-weight: 600; color: var(--accent); background: #fdeee8;
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); background: #fdeee8;
     border-radius: 6px; padding: 1px 6px; margin-left: 4px; vertical-align: middle; }
-  .today-note { margin: 2px 0 8px; color: var(--warn); font-size: 13px; }
+  .today-note { margin: 2px 0 8px; color: var(--warn); font-size: 14px; }
 
   /* Отделы списка закупки */
   .drag-hint { font-size: 12px; margin: -4px 0 8px; }
@@ -257,11 +266,11 @@
   #sections.editing .psec-tools { display: flex; }
   #sections.editing .psec-count { display: none; }
   .tool {
-    font: inherit; font-size: 15px; width: 32px; height: 30px; border: 0; border-radius: 8px;
+    font: inherit; font-size: 16px; width: 32px; height: 30px; border: 0; border-radius: 8px;
     background: var(--field); color: #444; padding: 0;
   }
   .tool:disabled { opacity: .3; }
-  .psec-rename { flex: 1; font-size: 14px; font-weight: 700; padding: 5px 8px; }
+  .psec-rename { flex: 1; font-size: 14px; font-weight: 600; padding: 5px 8px; }
   .psec .plist { min-height: 44px; }
   .drag-ghost { opacity: .35; }
   .drag-chosen { box-shadow: 0 6px 18px rgba(0, 0, 0, .18); transform: scale(1.04); }
@@ -269,9 +278,9 @@
   /* Товарный учёт у закупщика */
   #stockView .srow { min-height: 38px; }
   .sval { min-width: 44px; text-align: right; font-weight: 600; }
-  .sval small { display: block; font-size: 10px; font-weight: 400; color: var(--hint); white-space: nowrap; }
+  .sval small { display: block; font-size: 12px; font-weight: 400; color: var(--hint); white-space: nowrap; }
   .srow.low span, .srow.low .sval { color: var(--warn); }
-  .add-tool { color: var(--accent); font-size: 20px; font-weight: 500; }
+  .add-tool { color: var(--accent); font-size: 22px; font-weight: 600; }
 
   /* Выручка */
   /* Периоды — одна строка, листается вбок */
@@ -286,13 +295,13 @@
   .range-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
   .range-row span { color: var(--hint); }
   .range-row input { flex: 1; min-width: 0; text-align: center; }
-  .big { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 2px 0; }
-  .cmp { font-size: 13px; font-weight: 600; }
+  .big { font-size: 26px; font-weight: 800; letter-spacing: -.01em; margin: 2px 0; }
+  .cmp { font-size: 14px; font-weight: 600; }
   .cmp.up { color: var(--ok); }
   .cmp.down { color: var(--err); }
   .kv { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; }
   .kv b { font-weight: 600; }
-  .kv small { display: block; color: var(--hint); font-size: 11px; }
+  .kv small { display: block; color: var(--hint); font-size: 12px; }
   .bad-row { color: var(--warn); }
   .bars { display: flex; align-items: flex-end; gap: 2px; margin: 6px 0 2px; }
   .bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; opacity: .85; }
@@ -304,14 +313,14 @@
   .bval.vert { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 9px; margin: 0 auto 3px; }
   .bdates { display: flex; gap: 2px; }
   .bdates span { flex: 1; min-width: 0; text-align: center; font-size: 10px; line-height: 1.25; color: var(--hint); }
-  .bsel { text-align: center; font-size: 13px; font-weight: 600; min-height: 18px; }
+  .bsel { text-align: center; font-size: 14px; font-weight: 600; min-height: 18px; }
   .bsel.tip { font-size: 12px; font-weight: 400; color: var(--hint); }
   .day.hl { background: #fdeee8; border-radius: 10px; margin: 0 -8px; padding: 0 8px; border-top-color: transparent; }
   .bar.zero { background: var(--field); }
   .bars-axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--hint); }
   .day { border-top: 1px solid #f0f0ef; }
   .day:first-child { border-top: 0; }
-  .day-detail { font-size: 13px; color: #555; padding: 0 0 8px; }
+  .day-detail { font-size: 14px; color: #555; padding: 0 0 8px; }
   .loading-note { text-align: center; color: var(--hint); padding: 30px 0; }
   .ver-note { text-align: center; color: var(--hint); font-size: 12px; padding: 24px 0 8px; }
 
@@ -325,9 +334,13 @@
   .gate-art { width: 48vw; max-width: 220px; height: auto; display: block; }
   .gate.loading .gate-icon { animation: float 2.4s ease-in-out infinite; }
   @keyframes float { 50% { transform: translateY(-5px); } }
-  @media (prefers-reduced-motion: reduce) { .gate.loading .gate-icon { animation: none; } }
-  .gate h1 { margin: 20px 0 6px; font-size: 22px; font-weight: 700; }
-  .gate p { color: #7a7a7a; font-size: 13px; margin: 0 0 16px; max-width: 320px; }
+  @media (prefers-reduced-motion: reduce) { .gate.loading .gate-icon { animation: none; } .btn.pending::before { animation: none; } }
+  @supports (-webkit-touch-callout: none) { input, select, textarea { font-size: 16px !important; } }
+  /* Область нажатия не меньше ~44 px, хотя вид кнопки прежний */
+  .x, .pay-undo { position: relative; }
+  .x::after, .pay-undo::after { content: ''; position: absolute; inset: -12px -10px; }
+  .gate h1 { margin: 20px 0 6px; font-size: 22px; font-weight: 600; }
+  .gate p { color: #7a7a7a; font-size: 14px; margin: 0 0 16px; max-width: 320px; }
   .gate input, .gate .btn { width: 100%; max-width: 320px; }
   .gate input { text-align: center; }
 
@@ -344,19 +357,23 @@
   #billScreen textarea { margin: 6px 0; }
   #billScreen .btn { margin-top: 4px; }
   .bill-field { display: block; width: 100%; margin: 6px 0; }
-  .bill-sum { font-weight: 700; white-space: nowrap; }
+  .bill-sum { font-weight: 600; white-space: nowrap; }
   .bill-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid #f0f0ef; cursor: pointer; }
   .bill-item:first-child { border-top: 0; }
   .bill-main { flex: 1; min-width: 0; }
   .bill-what { font-weight: 600; }
   .bill-main small { display: block; color: var(--hint); font-size: 12px; margin-top: 2px; }
   .bill-go { color: var(--hint); font-size: 22px; }
-  .sheet-text { font-size: 15px; margin: 6px 0; white-space: pre-line; }
+  .sheet-text { font-size: 16px; margin: 6px 0; white-space: pre-line; }
+  .photo-slot { min-height: 96px; margin: 6px 0; padding: 8px; border-radius: 12px; background: var(--field); color: var(--hint);
+    font-size: 14px; text-align: center; display: flex; align-items: center; justify-content: center; }
+  .photo-slot.bad { color: var(--err); cursor: pointer; }
+  .msg-photos .photo-slot { min-width: 180px; margin-top: 4px; border-radius: 8px; background: rgba(0,0,0,.06); color: inherit; }
   .bill-photo { width: 100%; border-radius: 12px; margin: 6px 0; display: block; cursor: zoom-in; }
   #repairScreen textarea { margin: 6px 0; }
   #repairScreen .btn { margin-top: 4px; }
   .sheet textarea { width: 100%; }
-  .idea-text { font-weight: 500; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3;
+  .idea-text { font-weight: 600; white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3;
     -webkit-box-orient: vertical; }
   .idea-full { white-space: pre-wrap; font-size: 16px; margin: 6px 0 4px; }
   /* Комментарии к предложению — как чат */
@@ -367,17 +384,17 @@
   .msg.mine { align-self: flex-end; background: var(--accent); color: #fff; border-radius: 16px 16px 4px 16px; }
   .msg.pending { opacity: .65; }
   .msg.failed { background: var(--err); }
-  .msg-who { font-size: 12px; font-weight: 700; color: var(--accent); }
-  .msg-text { white-space: pre-wrap; font-size: 15px; word-wrap: break-word; }
-  .msg-meta { font-size: 11px; opacity: .6; text-align: right; margin-top: 1px; }
-  .msg-del { background: none; border: 0; padding: 0; font: inherit; font-size: 11px; text-decoration: underline;
+  .msg-who { font-size: 12px; font-weight: 600; color: var(--accent); }
+  .msg-text { white-space: pre-wrap; font-size: 16px; word-wrap: break-word; }
+  .msg-meta { font-size: 12px; opacity: .6; text-align: right; margin-top: 1px; }
+  .msg-del { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; text-decoration: underline;
     color: inherit; opacity: .7; }
   .msg { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: transform .15s; }
   .msg.press { transform: scale(.96); }
   .chat-hint { color: var(--hint); font-size: 12px; text-align: center; margin: -4px 0 6px; }
-  .chat-editing { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600;
+  .chat-editing { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600;
     color: var(--accent); padding: 4px 4px 0; }
-  .chat-editing .msg-del { font-size: 13px; color: var(--hint); opacity: 1; }
+  .chat-editing .msg-del { font-size: 14px; color: var(--hint); opacity: 1; }
   .chat-bar { display: flex; align-items: flex-end; gap: 8px; margin: 4px 0 10px; }
   .chat-bar textarea { flex: 1; min-height: 40px; max-height: 110px; margin: 0; border-radius: 20px; padding: 9px 14px; resize: none; }
   .chat-send { flex: none; width: 40px; height: 40px; border-radius: 20px; border: 0; background: var(--accent); color: #fff;
@@ -401,7 +418,7 @@
   .pv-x { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border-radius: 22px;
     border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 22px; line-height: 44px; z-index: 2; }
   .pv-hint { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
-    background: rgba(0,0,0,.6); color: #fff; font-size: 13px; padding: 6px 12px; border-radius: 14px; white-space: nowrap;
+    background: rgba(0,0,0,.6); color: #fff; font-size: 14px; padding: 6px 12px; border-radius: 14px; white-space: nowrap;
     pointer-events: none; z-index: 2; }
 
   /* Моя з/п */
@@ -409,7 +426,7 @@
   .my-total .big { color: var(--accent); }
   .my-wait { color: var(--hint); font-size: 12px; font-weight: 600; }
   .my-part { color: var(--warn); font-size: 12px; font-weight: 600; }
-  .my-sum { white-space: nowrap; flex: none; font-size: 17px; }
+  .my-sum { white-space: nowrap; flex: none; font-size: 18px; }
   .my-units .pay-unit:first-child { border-top: none; }
   .my-units .pay-line { cursor: default; }
   .my-shift { padding: 4px 0 !important; }
@@ -505,7 +522,7 @@
   <div class="lbl">Расходы из кассы</div>
   <div id="expenses"></div>
   <button type="button" class="link" id="addExpense">+ Добавить расход</button>
-  <div class="lbl">Аванс из кассы<small style="display:block;color:var(--hint);font-size:11px">кто взял деньги в счёт зарплаты</small></div>
+  <div class="lbl">Аванс из кассы<small style="display:block;color:var(--hint);font-size: 12px">кто взял деньги в счёт зарплаты</small></div>
   <div id="advances"></div>
   <button type="button" class="link" id="addAdvance">+ Кто взял аванс</button>
   <div id="cashEndRow"></div>
@@ -531,7 +548,7 @@
   <textarea id="reviews" placeholder="Если были отзывы, жалобы, пожелания - напишите"></textarea>
 </div>
 <div class="card">
-  <label class="row"><span>Отзывов в 2ГИС за смену<small>+ 100 ₽ каждому бариста на смене</small></span>
+  <label class="row"><span>Отзывов в 2ГИС за смену<small>+ 100 ₽ каждому бариста на смене</small></span>
     <input class="num" id="gis2" inputmode="numeric" autocomplete="off" placeholder="-"></label>
 </div>
 
@@ -553,7 +570,7 @@
   <div id="boughtBlock" hidden>
     <div class="sec-row">
       <h2 class="sec">Куплено</h2>
-      <button type="button" class="link" id="clearBought">Очистить</button>
+      <button type="button" class="link" id="clearBought">Убрать все</button>
     </div>
     <div class="card"><div class="plist" id="boughtList"></div></div>
   </div>
@@ -615,7 +632,7 @@
     <div class="photos" id="billPhotos"></div>
     <input type="file" id="billPhotoInput" accept="image/*" multiple hidden>
     <input type="text" class="bill-field" id="billFrom" maxlength="100" autocomplete="off" placeholder="От кого счёт — например «Молочная ферма»">
-    <input type="text" class="bill-field" id="billSum" inputmode="decimal" autocomplete="off" placeholder="Сумма, ₽ (если знаете)">
+    <input type="text" class="bill-field" id="billSum" inputmode="decimal" autocomplete="off" placeholder="Сумма, ₽ (если знаете)">
     <textarea id="billNote" placeholder="Комментарий — за что, до какого числа оплатить (можно не писать)"></textarea>
     <button type="button" class="btn" id="billSend">Отправить счёт</button>
   </div>
@@ -761,7 +778,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-05.1';
+const APP_VERSION = '2026-11-05.3';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -803,7 +820,7 @@ function fmt(n) {
   if (n == null || isNaN(n)) return '—';
   const neg = n < 0;
   const [i, f] = String(Math.abs(Math.round(n * 100) / 100)).split('.');
-  return (neg ? '−' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (f ? ',' + f : '');
+  return (neg ? '−' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0') + (f ? ',' + f : '');
 }
 function storage(fn) { try { return fn(window.localStorage); } catch (e) { return null; } }
 
@@ -1106,20 +1123,20 @@ function collect() {
 
 function recalc() {
   const r = collect();
-  $('revenue').textContent = (r.cash == null && r.card == null) ? '-' : fmt(r.revenue) + ' ₽';
+  $('revenue').textContent = (r.cash == null && r.card == null) ? '-' : fmt(r.revenue) + ' ₽';
   const st = $('cashStatus');
   if (r.cashStart == null || r.cash == null) {
     st.className = 'status';
     st.textContent = 'Заполните кассу на начало и наличные — посчитаю, сколько должно остаться.';
   } else if (r.diff == null) {
     st.className = 'status';
-    st.textContent = `Должно остаться в кассе: ${fmt(r.cashExpected)} ₽`;
+    st.textContent = `Должно остаться в кассе: ${fmt(r.cashExpected)} ₽`;
   } else if (Math.abs(r.diff) < 0.005) {
     st.className = 'status ok';
-    st.textContent = `✅ Касса сходится: ${fmt(r.cashExpected)} ₽`;
+    st.textContent = `✅ Касса сходится: ${fmt(r.cashExpected)} ₽`;
   } else {
     st.className = 'status warn';
-    st.textContent = `⚠️ Не сходится на ${r.diff > 0 ? '+' : ''}${fmt(r.diff)} ₽ (должно быть ${fmt(r.cashExpected)} ₽)`;
+    st.textContent = `⚠️ Не сходится на ${r.diff > 0 ? '+' : ''}${fmt(r.diff)} ₽ (должно быть ${fmt(r.cashExpected)} ₽)`;
   }
 }
 
@@ -1463,7 +1480,7 @@ function setupTabs(role) {
     b.onclick = () => setTab(b.dataset.tab);
   });
   // Больше четырёх вкладок не помещается — листаются вбок
-  const scroll = show.length > 4;
+  const scroll = show.length > 3;
   bar.classList.toggle('scroll', scroll);
   bar.style.gridTemplateColumns = scroll ? '' : `repeat(${show.length}, 1fr)`;
   bar.hidden = false;
@@ -1475,7 +1492,12 @@ function markTab(tab) {
     const on = b.dataset.tab === tab;
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
     if (on && $('tabs').classList.contains('scroll')) {
-      try { b.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+      // после отрисовки: ставим активную вкладку в середину полосы (иначе она может торчать за краем)
+      requestAnimationFrame(() => {
+        const bar = $('tabs');
+        const left = Math.max(0, b.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2);
+        try { bar.scrollTo({ left: left, behavior: 'smooth' }); } catch (e) { bar.scrollLeft = left; }
+      });
     }
   });
 }
@@ -2530,7 +2552,7 @@ function expRow(d, money) {
 
 function renderRevenue(d) {
   const out = [];
-  const money = n => fmt(n) + ' ₽';
+  const money = n => fmt(n) + ' ₽';
 
   // Итог
   const top = el('div', 'card');
@@ -2756,7 +2778,7 @@ async function loadPay(from, to) {
 async function payAction(action, person, unit, label, adv) {
   if (payBusy || !payCur) return;
   const msg = action === 'payout'
-    ? (adv ? `Выдать ${person.name} аванс ${fmt(adv)} ₽ (${label})?` : `Отметить, что ${person.name} выплачено ${fmt(unit.due)} ₽ (${label})?`)
+    ? (adv ? `Выдать ${person.name} аванс ${fmt(adv)} ₽ (${label})?` : `Отметить, что ${person.name} выплачено ${fmt(unit.due)} ₽ (${label})?`)
     : `Отменить последнюю отметку о выплате: ${person.name}, ${label}?`;
   if (!(await confirm_(msg))) return;
   if (!inTg || !apiReady) return alert_('Откройте приложение через бота в Телеграме.');
@@ -2783,7 +2805,7 @@ async function payAction(action, person, unit, label, adv) {
 }
 
 function renderPay(d) {
-  const money = n => fmt(n) + ' ₽';
+  const money = n => fmt(n) + ' ₽';
   const out = [];
 
   const sum = el('div', 'card');
@@ -2824,29 +2846,30 @@ function renderPay(d) {
       const box = el('div', 'pay-unit');
       const line = el('div', 'pay-line');
       const info = el('div');
-      info.appendChild(el('div', null, `${label} · ${money(u.total)}`));
+      info.appendChild(el('div', null, label));
+      info.appendChild(el('b', 'pay-sum', money(u.total)));
       const parts = [`ставки ${fmt(u.base)}`];
       if (u.gis) parts.push(`2ГИС ${fmt(u.gis)}`);
       if (u.senior) parts.push(`стаж ${fmt(u.senior)}`);
-      info.appendChild(el('small', null, u.shifts.length
-        ? parts.join(' + ') + (isWeek ? ` · ${u.shifts.length} ${pluralRu(u.shifts.length, 'смена', 'смены', 'смен')}` : '')
-        : 'смен пока нет — выдан аванс'));
-      // Когда выдавали: аванс 5 000 ₽ — 02.11.2026. Был аванс — следующая выплата это «остаток», а не «доплата»
+      if (u.shifts.length && isWeek) parts.push(`${u.shifts.length} ${pluralRu(u.shifts.length, 'смена', 'смены', 'смен')}`);
+      if (!u.shifts.length) parts.length = 0, parts.push('смен пока нет — выдан аванс');
+      parts.forEach(t => info.appendChild(el('small', null, t)));
+      // Когда выдавали: аванс 5 000 ₽ — 02.11.2026. Был аванс — следующая выплата это «остаток», а не «доплата»
       const hadAdvance = (u.log || []).some(x => /^аванс/.test(x.label));
       if (hadAdvance) (u.log || []).forEach(x => {
         const kind = /^аванс/.test(x.label) ? 'аванс' : /остаток/.test(x.label) ? 'остаток' : 'выдано';
-        info.appendChild(el('small', null, `${kind} ${fmt(x.sum)} ₽ — ${x.date}`));
+        info.appendChild(el('small', null, `${kind} ${fmt(x.sum)} ₽ — ${x.date}`));
       });
 
       const act = el('div', 'pay-act');
       if (u.due > 0) {
         if (u.paid > 0 && !hadAdvance) act.appendChild(el('div', 'pay-extra', `доплата +${fmt(u.due)}`));
-        const b = el('button', 'pay-btn', `${u.paid > 0 ? (hadAdvance ? 'Выплатить остаток' : 'Доплатить') : 'Выплатить'} ${fmt(u.due)} ₽`);
+        const b = el('button', 'pay-btn', `${u.paid > 0 ? (hadAdvance ? 'Выплатить остаток' : 'Доплатить') : 'Выплатить'} ${fmt(u.due)} ₽`);
         b.type = 'button';
         b.addEventListener('click', e => { e.stopPropagation(); payAction('payout', p, u, label); });
         act.appendChild(b);
       } else {
-        act.appendChild(el('div', 'pay-done', u.due < 0 ? `переплата ${fmt(-u.due)} ₽` : '✓ выплачено'));
+        act.appendChild(el('div', 'pay-done', u.due < 0 ? `переплата ${fmt(-u.due)} ₽` : '✓ выплачено'));
       }
       if (u.paid > 0) {
         const undo = el('button', 'pay-undo', 'отменить');
@@ -2867,7 +2890,7 @@ function renderPay(d) {
         ab.addEventListener('click', () => {
           const sm = num(input.value);
           if (!(sm > 0)) return alert_('Напишите сумму аванса.');
-          if (sm > u.due) return alert_(`Это больше, чем осталось выплатить (${fmt(u.due)} ₽).`);
+          if (sm > u.due) return alert_(`Это больше, чем осталось выплатить (${fmt(u.due)} ₽).`);
           payAction('payout', p, u, label, sm);
         });
         adv.append(input, ab);
@@ -2881,7 +2904,7 @@ function renderPay(d) {
         const bits = [`выручка ${fmt(s.rev)}`, s.two ? 'вдвоём' : 'один', `ставка ${fmt(s.base)}`];
         if (s.gis) bits.push(`2ГИС ${fmt(s.gis)}`);
         if (s.senior) bits.push(`стаж ${fmt(s.senior)}`);
-        const row = el('div', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)}: ${fmt(s.total)} ₽ — ${bits.join(', ')}`);
+        const row = el('div', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)}: ${fmt(s.total)} ₽ — ${bits.join(', ')}`);
         if (s.note) { row.appendChild(document.createElement('br')); row.appendChild(el('i', null, s.note)); }
         det.appendChild(row);
       });
@@ -3063,7 +3086,7 @@ function applyLast(last) {
   if (!last) return;
   $('lastInfo').textContent = `Прошлый отчёт: ${ddmm(last.date)}, ${last.sender || last.barista || ''}`;
   if (last.cashEnd != null && last.cashEnd !== '') {
-    $('cashStartHint').textContent = `по прошлому отчёту: ${fmt(Number(last.cashEnd))} ₽`;
+    $('cashStartHint').textContent = `по прошлому отчёту: ${fmt(Number(last.cashEnd))} ₽`;
     if (fields.cashStart.value === '') { fields.cashStart.value = last.cashEnd; recalc(); }
   }
   stockEls.forEach(s => {
@@ -3113,7 +3136,7 @@ async function submit() {
   const warnings = [];
   const emptyStock = r.stock.filter(s => s.value == null).length;
   if (emptyStock) warnings.push(`Не заполнено позиций товара: ${emptyStock}.`);
-  if (r.diff) warnings.push(`Касса не сходится на ${r.diff > 0 ? '+' : ''}${fmt(r.diff)} ₽.`);
+  if (r.diff) warnings.push(`Касса не сходится на ${r.diff > 0 ? '+' : ''}${fmt(r.diff)} ₽.`);
   if (warnings.length && !(await confirm_(warnings.join('\n') + '\nВсё равно отправить?'))) return;
 
   if (!inTg) return alert_('Откройте форму через бота в Телеграме — иначе отчёт не отправится.');
@@ -3237,7 +3260,7 @@ function billItem(x) {
   if (x.photos) bits.push(`📷 ${x.photos}`);
   main.appendChild(el('small', null, bits.join(' · ')));
   row.appendChild(main);
-  if (x.sum != null) row.appendChild(el('span', 'bill-sum', fmt(x.sum) + ' ₽'));
+  if (x.sum != null) row.appendChild(el('span', 'bill-sum', fmt(x.sum) + ' ₽'));
   row.appendChild(el('span', 'bill-go', '›'));
   row.addEventListener('click', () => openBill(x));
   return row;
@@ -3247,7 +3270,7 @@ function renderBills() {
   const d = billData;
   const out = [];
   out.push(el('h2', 'sec', `Не оплачены${d.open.length ? ' · ' + d.open.length : ''}` +
-    (d.openSum ? ` · ${fmt(d.openSum)} ₽` : '')));
+    (d.openSum ? ` · ${fmt(d.openSum)} ₽` : '')));
   const open = el('div', 'card');
   if (!d.open.length) open.appendChild(el('div', 'note', 'Неоплаченных счетов нет'));
   d.open.forEach(x => open.appendChild(billItem(x)));
@@ -3259,35 +3282,117 @@ function renderBills() {
     out.push(done);
   }
   $('billList').replaceChildren(...out);
+  prefetchPhotos(d.open.concat(d.paid.slice(0, 3)).flatMap(billPhotoItems));
 }
 
 // Фото счёта — по нажатию, через сервер
+/* ---------- фото: загрузка заранее, чтобы при открытии они уже были ---------- */
+// Фото счетов, ремонта и чата лежат на Google Диске и приходят через сервер — это долго. Поэтому после загрузки
+// списка они подтягиваются в фоне и запоминаются на телефоне (IndexedDB, до 60 штук). При открытии карточки
+// фото показываются сразу; если их ещё нет — грузятся сами, без нажатия на кнопку.
+const photoMem = new Map();   // ключ → Promise со строкой data:image/…
+const PHOTO_KEEP = 60;
+function photoDb() {
+  if (!photoDb.p) photoDb.p = new Promise(res => {
+    try {
+      const rq = indexedDB.open('shift-report-photos', 1);
+      rq.onupgradeneeded = () => { const st = rq.result.createObjectStore('p', { keyPath: 'k' }); st.createIndex('t', 't'); };
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = rq.onblocked = () => res(null);
+    } catch (e) { res(null); }
+  });
+  return photoDb.p;
+}
+async function photoSaved(k) {
+  const db = await photoDb();
+  if (!db) return null;
+  return new Promise(res => {
+    try {
+      const r = db.transaction('p').objectStore('p').get(k);
+      r.onsuccess = () => res(r.result ? r.result.d : null);
+      r.onerror = () => res(null);
+    } catch (e) { res(null); }
+  });
+}
+async function photoSave(k, d) {
+  const db = await photoDb();
+  if (!db) return;
+  try {
+    const st = db.transaction('p', 'readwrite').objectStore('p');
+    st.put({ k, d, t: Date.now() });
+    const c = st.count();
+    c.onsuccess = () => {
+      let extra = c.result - PHOTO_KEEP;
+      if (extra <= 0) return;
+      st.index('t').openKeyCursor().onsuccess = e => {
+        const cur = e.target.result;
+        if (cur && extra-- > 0) { st.delete(cur.primaryKey); cur.continue(); }
+      };
+    };
+  } catch (e) {}
+}
+function getPhoto(it) {
+  let p = photoMem.get(it.key);
+  if (p) return p;
+  p = (async () => {
+    const saved = await photoSaved(it.key);
+    if (saved) return saved;
+    const res = await fetch(`${API_URL}?action=${it.q}&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    photoSave(it.key, data.data);
+    return data.data;
+  })();
+  photoMem.set(it.key, p);
+  if (photoMem.size > 40) photoMem.delete(photoMem.keys().next().value);
+  p.catch(() => photoMem.delete(it.key));
+  return p;
+}
+const preQ = [];
+let preBusy = 0;
+function pumpPhotos() {
+  while (preBusy < 2 && preQ.length) {
+    const it = preQ.shift();
+    preBusy++;
+    getPhoto(it).catch(() => {}).finally(() => { preBusy--; pumpPhotos(); });
+  }
+}
+function prefetchPhotos(items) {
+  items.slice(0, 24).forEach(it => { if (!photoMem.has(it.key) && !preQ.some(q => q.key === it.key)) preQ.push(it); });
+  setTimeout(pumpPhotos, 1200);   // не мешаем основной загрузке экрана
+}
+const billPhotoItems = x => Array.from({ length: x.photos || 0 }, (_, n) =>
+  ({ key: `bill:${x.id}:${n}`, q: `billPhoto&id=${encodeURIComponent(x.id)}&n=${n}` }));
+const repairPhotoItems = (x, kind, count) => Array.from({ length: count || 0 }, (_, n) =>
+  ({ key: `rep:${x.id}:${kind}:${n}`, q: `repairPhoto&id=${encodeURIComponent(x.id)}&kind=${kind}&n=${n}` }));
+const ideaPhotoItems = (id, c) => Array.from({ length: c.photos || 0 }, (_, n) =>
+  ({ key: `idea:${id}:${c.cid || ''}:${n}`, q: `ideaPhoto&id=${encodeURIComponent(id)}&cid=${encodeURIComponent(c.cid || '')}&n=${n}` }));
+// Поставить в блок фото: пока грузится — серая плашка, при ошибке — «нажмите, чтобы повторить»
+function mountPhotos(wrap, items, imgClass, alt) {
+  items.forEach((it, n) => {
+    const slot = el('div', 'photo-slot', 'Загружаю фото…');
+    wrap.appendChild(slot);
+    const load = () => {
+      slot.textContent = 'Загружаю фото…';
+      slot.classList.remove('bad');
+      getPhoto(it).then(src => {
+        const img = el('img', imgClass);
+        img.src = src; img.alt = `${alt} ${n + 1}`;
+        img.addEventListener('click', () => openPhotoView(img.src));
+        slot.replaceWith(img);
+      }).catch(() => { slot.textContent = 'Фото не загрузилось. Нажмите, чтобы повторить'; slot.classList.add('bad'); });
+    };
+    slot.addEventListener('click', () => { if (slot.classList.contains('bad')) load(); });
+    load();
+  });
+}
+
+// Фото счёта: ставятся сразу, берутся из памяти или с сервера
 function billPhotoLoader(x) {
   const wrap = el('div');
   if (!x.photos) return wrap;
-  const label = `📷 Фото счёта (${x.photos})`;
-  const btn = el('button', 'btn btn-light', label);
-  btn.type = 'button';
-  btn.addEventListener('click', async () => {
-    btn.disabled = true; btn.textContent = 'Загружаю фото…';
-    try {
-      for (let n = 0; n < x.photos; n++) {
-        const res = await fetch(`${API_URL}?action=billPhoto&id=${encodeURIComponent(x.id)}&n=${n}&initData=${encodeURIComponent(initData)}`);
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
-        const img = el('img', 'bill-photo');
-        img.src = data.data; img.alt = `Фото счёта ${n + 1}`;
-        img.addEventListener('click', () => openPhotoView(img.src));
-        wrap.appendChild(img);
-      }
-      wrap.appendChild(el('div', 'note', 'Нажмите на фото, чтобы открыть на весь экран и увеличить.'));
-      btn.remove();
-    } catch (e) {
-      btn.disabled = false; btn.textContent = label;
-      alert_('Не удалось загрузить фото: ' + e.message);
-    }
-  });
-  wrap.appendChild(btn);
+  mountPhotos(wrap, billPhotoItems(x), 'bill-photo', 'Фото счёта');
+  wrap.appendChild(el('div', 'note', 'Нажмите на фото, чтобы открыть на весь экран и увеличить.'));
   return wrap;
 }
 
@@ -3296,7 +3401,7 @@ function openBill(x) {
   body.textContent = '';
   body.appendChild(el('h2', null, x.from || 'Счёт'));
   body.appendChild(el('div', 'grp', `${x.date} · прислал(а) ${x.who}`));
-  if (x.sum != null) body.appendChild(el('div', 'sheet-text', `💰 Сумма: ${fmt(x.sum)} ₽`));
+  if (x.sum != null) body.appendChild(el('div', 'sheet-text', `💰 Сумма: ${fmt(x.sum)} ₽`));
   if (x.note) body.appendChild(el('div', 'sheet-text', '📝 ' + x.note));
   body.appendChild(billPhotoLoader(x));
   if (x.status === 'оплачен') {
@@ -3429,6 +3534,10 @@ function renderRepairs() {
   }
   $('repairList').replaceChildren(...out);
   renderIdeas();
+  prefetchPhotos(
+    d.open.flatMap(x => repairPhotoItems(x, 'before', x.photos))
+      .concat(d.fixed.slice(0, 3).flatMap(x => repairPhotoItems(x, 'before', x.photos).concat(repairPhotoItems(x, 'after', x.fixPhotos))))
+      .concat((d.ideas || []).slice(0, 5).flatMap(i => (i.comments || []).slice().reverse().flatMap(c => ideaPhotoItems(i.id, c)))));
 }
 
 /* ---------- предложения: список идей и комментарии (видят все) ---------- */
@@ -3602,26 +3711,7 @@ $('ideaPhotoInput').addEventListener('change', async e => {
 // Фото в сообщении грузятся по нажатию — через сервер
 function ideaPhotoLoader(id, c) {
   const wrap = el('div', 'msg-photos');
-  const btn = el('button', 'msg-ph-btn', `📷 Фото (${c.photos})`);
-  btn.type = 'button';
-  btn.addEventListener('click', async () => {
-    btn.disabled = true; btn.textContent = 'Загружаю фото…';
-    try {
-      for (let n = 0; n < c.photos; n++) {
-        const res = await fetch(`${API_URL}?action=ideaPhoto&id=${encodeURIComponent(id)}&cid=${encodeURIComponent(c.cid || '')}&n=${n}&initData=${encodeURIComponent(initData)}`);
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
-        const img = el('img'); img.src = data.data; img.alt = `Фото ${n + 1}`;
-        img.addEventListener('click', () => openPhotoView(img.src));
-        wrap.appendChild(img);
-      }
-      btn.remove();
-    } catch (e) {
-      btn.disabled = false; btn.textContent = `📷 Фото (${c.photos})`;
-      alert_('Не удалось загрузить фото: ' + e.message);
-    }
-  });
-  wrap.appendChild(btn);
+  mountPhotos(wrap, ideaPhotoItems(id, c), '', 'Фото');
   return wrap;
 }
 
@@ -3745,27 +3835,8 @@ async function ideaPost(body, then) {
 function repairPhotoLoader(x, kind, count, label) {
   const wrap = el('div');
   if (!count) return wrap;
-  const btn = el('button', 'btn btn-light', `📷 ${label} (${count})`);
-  btn.type = 'button';
-  btn.addEventListener('click', async () => {
-    btn.disabled = true; btn.textContent = 'Загружаю фото…';
-    try {
-      for (let n = 0; n < count; n++) {
-        const res = await fetch(`${API_URL}?action=repairPhoto&id=${encodeURIComponent(x.id)}&kind=${kind}&n=${n}&initData=${encodeURIComponent(initData)}`);
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
-        const img = el('img', 'bill-photo');
-        img.src = data.data; img.alt = `${label} ${n + 1}`;
-        img.addEventListener('click', () => openPhotoView(img.src));
-        wrap.appendChild(img);
-      }
-      btn.remove();
-    } catch (e) {
-      btn.disabled = false; btn.textContent = `📷 ${label} (${count})`;
-      alert_('Не удалось загрузить фото: ' + e.message);
-    }
-  });
-  wrap.appendChild(btn);
+  wrap.appendChild(el('div', 'grp', label));
+  mountPhotos(wrap, repairPhotoItems(x, kind, count), 'bill-photo', label);
   return wrap;
 }
 
@@ -4076,7 +4147,7 @@ function renderMyPay() {
     return;
   }
   const top = el('div', 'card my-total');
-  top.append(el('div', 'note', 'К выплате'), el('div', 'big', `${fmt(d.due)} ₽`));
+  top.append(el('div', 'note', 'К выплате'), el('div', 'big', `${fmt(d.due)} ₽`));
   if (!d.units.length) top.appendChild(el('div', 'note', 'Сейчас всё выплачено'));
   out.push(top);
 
@@ -4089,10 +4160,10 @@ function renderMyPay() {
       left.appendChild(el('b', null, capFirst(myUnitLabel(u))));
       // Неделя ещё не закончилась — сумма будет расти
       if (u.key.startsWith('неделя:') && d.today <= u.to) left.appendChild(el('div', 'my-wait', 'неделя ещё идёт — сумма может вырасти'));
-      if (u.paid > 0) left.appendChild(el('div', 'my-part', `уже выдано ${fmt(u.paid)} ₽ из ${fmt(u.total)} ₽`));
+      if (u.paid > 0) left.appendChild(el('div', 'my-part', `уже выдано ${fmt(u.paid)} ₽ из ${fmt(u.total)} ₽`));
       (u.log || []).forEach(x => left.appendChild(el('div', 'my-part',
-        `${/^аванс/.test(x.label) ? 'аванс' : 'выдано'} ${fmt(x.sum)} ₽ — ${x.date}`)));
-      line.append(left, el('b', 'my-sum', `${fmt(u.due)} ₽`));
+        `${/^аванс/.test(x.label) ? 'аванс' : 'выдано'} ${fmt(x.sum)} ₽ — ${x.date}`)));
+      line.append(left, el('b', 'my-sum', `${fmt(u.due)} ₽`));
       box.appendChild(line);
       if (u.shifts && u.shifts.length) {
         const det = el('div', 'pay-shifts');
@@ -4101,7 +4172,7 @@ function renderMyPay() {
           if (s.gis) bits.push(`2ГИС ${fmt(s.gis)}`);
           if (s.senior) bits.push(`стаж ${fmt(s.senior)}`);
           const row = el('div', 'my-shift');
-          row.append(el('b', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)} — ${fmt(s.total)} ₽`),
+          row.append(el('b', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)} — ${fmt(s.total)} ₽`),
             el('small', null, bits.join(' + ')));
           if (s.note) row.appendChild(el('small', null, s.note));
           det.appendChild(row);
