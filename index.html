@@ -121,7 +121,7 @@
   .staff-row small { display: block; color: var(--hint); font-size: 12px; }
   .staff-edit { flex: none; width: 36px; height: 36px; border-radius: 18px; border: 0; background: var(--field);
     color: var(--accent); font-size: 18px; padding: 0; }
-  .link { border: 0; color: var(--accent); font: inherit; font-weight: 600; padding: 6px 0; }
+  .link { border: 0; background: none; -webkit-appearance: none; appearance: none; color: var(--accent); font: inherit; font-weight: 600; padding: 6px 0; }
 
   /* Одиночная / парная смена */
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; }
@@ -778,7 +778,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-05.3';
+const APP_VERSION = '2026-11-05.4';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
