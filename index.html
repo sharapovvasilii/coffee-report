@@ -83,7 +83,38 @@
   .exp .exp-name { flex: 1; min-width: 0; }
   .exp .exp-sum { width: 90px; text-align: right; }
   .x { background: none; border: 0; color: var(--hint); font-size: 22px; padding: 0 6px; }
-  .link { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 500; padding: 6px 0; }
+  .name-hint { margin: 2px 0 6px; }
+  .name-hint .chips { margin: 0; }
+  .name-hint .note { margin: 2px 0 6px; color: var(--warn); font-weight: 600; }
+  .name-hint .chip { background: var(--accent); color: #fff; }
+  .name-hint .chip.light { background: var(--field); color: var(--text); }
+  .exp select.exp-name { text-align: left; text-align-last: left; }
+  .kv.tap { cursor: pointer; }
+  .kv.tap > div:first-child { color: var(--accent); font-weight: 600; }
+  .exp-list { background: var(--field); border-radius: 10px; padding: 4px 10px; margin: 2px 0 6px; font-size: 14px; }
+  .exp-day { padding: 6px 0; border-top: 1px solid rgba(0,0,0,.06); }
+  .exp-day:first-child { border-top: none; }
+  .exp-day .exp-h { display: flex; justify-content: space-between; font-weight: 700; }
+  .exp-day .exp-i { display: flex; justify-content: space-between; gap: 8px; color: #555; padding: 2px 0 0 10px; }
+  .adv-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+  .adv-row input { width: 100px; text-align: right; padding: 6px 8px; font-size: 14px; }
+  .pay-btn.light { background: var(--field); color: var(--accent); }
+  .pay-log { display: block; color: var(--hint); font-size: 12px; }
+  .chat-attach { flex: none; width: 40px; height: 40px; border-radius: 20px; border: 0; background: none; color: var(--hint);
+    display: flex; align-items: center; justify-content: center; padding: 0; }
+  .chat-photos { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 0; }
+  .chat-photos .ph { width: 56px; height: 56px; }
+  .msg-photos { margin-top: 4px; }
+  .msg-photos img { display: block; max-width: 100%; max-height: 220px; border-radius: 8px; margin-top: 4px; }
+  .msg-photos .msg-ph-btn { background: none; border: 0; padding: 2px 0; font: inherit; font-size: 14px; color: inherit;
+    text-decoration: underline; }
+  .staff-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0;
+    border-top: 1px solid #f0f0ef; }
+  .staff-row:first-child { border-top: none; }
+  .staff-row small { display: block; color: var(--hint); font-size: 12px; }
+  .staff-edit { flex: none; width: 36px; height: 36px; border-radius: 18px; border: 0; background: var(--field);
+    color: var(--accent); font-size: 18px; padding: 0; }
+  .link { border: 0; color: var(--accent); font: inherit; font-weight: 500; padding: 6px 0; }
 
   /* Одиночная / парная смена */
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; }
@@ -406,6 +437,7 @@
   <button type="button" class="seg-btn" data-tab="buy" hidden>Закупка</button>
   <button type="button" class="seg-btn" data-tab="rev" hidden>Выручка</button>
   <button type="button" class="seg-btn" data-tab="pay" hidden>Зарплата</button>
+  <button type="button" class="seg-btn" data-tab="staff" hidden>Сотрудники</button>
 </div>
 
 <main id="form">
@@ -438,12 +470,14 @@
 <div class="card">
   <label class="row"><span>Бариста</span><select id="barista"></select></label>
   <input id="baristaOther" class="full" placeholder="Фамилия и имя" hidden>
+  <div class="name-hint" id="nameHint" hidden></div>
   <div class="row"><span>Время</span>
     <div class="pair"><input type="time" id="shiftFrom"> - <input type="time" id="shiftTo"></div>
   </div>
   <div id="pairRows" hidden>
     <label class="row"><span>Бариста</span><select id="barista2"></select></label>
     <input id="baristaOther2" class="full" placeholder="Фамилия и имя" hidden>
+    <div class="name-hint" id="nameHint2" hidden></div>
     <div class="row"><span>Время</span>
       <div class="pair"><input type="time" id="shiftFrom2"> - <input type="time" id="shiftTo2"></div>
     </div>
@@ -471,6 +505,9 @@
   <div class="lbl">Расходы из кассы</div>
   <div id="expenses"></div>
   <button type="button" class="link" id="addExpense">+ Добавить расход</button>
+  <div class="lbl">Аванс из кассы<small style="display:block;color:var(--hint);font-size:11px">кто взял деньги в счёт зарплаты</small></div>
+  <div id="advances"></div>
+  <button type="button" class="link" id="addAdvance">+ Кто взял аванс</button>
   <div id="cashEndRow"></div>
   <div class="status" id="cashStatus"></div>
 </div>
@@ -503,7 +540,6 @@
   <textarea id="baristaFeedback" style="min-height: 110px" placeholder="Напишите здесь ваши пожелания: что можно сделать для улучшения, что хотели бы добавить, убрать, заменить, что сломано"></textarea>
 </div>
 
-<p id="syncStatus" class="status" role="status" aria-live="polite" hidden></p>
 <button id="sendBtn" class="btn" type="button" hidden>Отправить отчёт</button>
 </main>
 
@@ -564,7 +600,6 @@
     <div class="qty-list" id="orderQty"></div>
     <textarea id="orderNow" placeholder="Что еще нужно - каждое с новой строки, например «Молоко 5 л»"></textarea>
   </div>
-  <p id="orderSyncStatus" class="status" role="status" aria-live="polite" hidden></p>
   <button id="sendOrderBtn" class="btn" type="button" hidden>Отправить заявку</button>
 </main>
 
@@ -613,6 +648,16 @@
     <div id="ideaList"></div>
   </div>
   <input type="file" id="fixPhotoInput" accept="image/*" multiple hidden>
+  <input type="file" id="ideaPhotoInput" accept="image/*" multiple hidden>
+</main>
+
+<!-- Сотрудники (только владелец) -->
+<main id="staffScreen" hidden>
+  <header>
+    <h1>Сотрудники</h1>
+    <div class="sub">Нажмите карандаш, чтобы исправить имя — оно поменяется везде</div>
+  </header>
+  <div id="staffBody"></div>
 </main>
 
 <!-- Моя з/п: своя невыплаченная зарплата (бариста) -->
@@ -716,8 +761,7 @@ const ORDER_ITEMS = ['Сахар', 'Банан', 'Зерна', 'Молоко', '
 /* ============================================= */
 
 // Версия этого файла — видна внизу вкладки «Выручка», чтобы проверить, что обновление дошло
-const APP_VERSION = '2026-11-04.6';
-const API_CONTRACT_VERSION = 1;
+const APP_VERSION = '2026-11-05.1';
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const initData = tg ? tg.initData : '';
@@ -764,13 +808,6 @@ function fmt(n) {
 function storage(fn) { try { return fn(window.localStorage); } catch (e) { return null; } }
 
 function showBanner(text) { const b = $('banner'); b.textContent = text; b.hidden = !text; }
-function setSyncStatus(text, state, target) {
-  const el = $(target || 'syncStatus');
-  if (!el) return;
-  el.textContent = text || '';
-  el.className = 'status' + (state ? ' ' + state : '');
-  el.hidden = !text;
-}
 function alert_(msg) {
   return new Promise(res => {
     if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) tg.showAlert(msg, res);
@@ -870,7 +907,20 @@ function applyConfig(cfg) {
   renderStock(config.stock);
   fillBaristas($('barista'), 'Имя', config.baristas);
   fillBaristas($('barista2'), 'Имя', config.baristas);
+  refillAdvanceNames();
   updateBaristaRows();
+}
+
+function refillAdvanceNames() {
+  document.querySelectorAll('#advances .adv select').forEach(n => {
+    const keep = n.value;
+    n.textContent = '';
+    n.add(new Option('Кто взял аванс…', ''));
+    const names = (config.baristas || []).slice();
+    if (keep && !names.includes(keep)) names.unshift(keep);
+    names.forEach(x => n.add(new Option(x, x)));
+    n.value = keep;
+  });
 }
 
 function build() {
@@ -904,7 +954,105 @@ function build() {
   (Array.isArray(cachedChips) && cachedChips.length ? cachedChips : ORDER_ITEMS).forEach(addChip);
 
   $('addExpense').addEventListener('click', () => { addExpense(); saveDraftSoon(); });
+  $('addAdvance').addEventListener('click', () => { addAdvance().focus(); saveDraftSoon(); });
+
+  // Похожие имена, когда выбрано «Другой человек…»
+  [[fields.barista, fields.baristaOther, $('nameHint')], [fields.barista2, fields.baristaOther2, $('nameHint2')]]
+    .forEach(([sel, other, hint]) => {
+      const r = { sel, other, hint, otherNew: '' };
+      nameRows.push(r);
+      sel.addEventListener('change', () => refreshNameHint(r));
+      other.addEventListener('input', () => refreshNameHint(r));
+      other.addEventListener('change', () => checkTypedName(r));
+    });
 }
+
+/* ---------- похожие имена: «Тимур» → «Алексеев Тимур» ---------- */
+
+const nameRows = [];
+function normNm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function oneTypo(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, diff = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++diff > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return diff + (a.length - i) + (b.length - j) <= 1;
+}
+// Каждое вписанное слово — начало слова в имени или отличается одной буквой (опечатка)
+function similarStaff(typed) {
+  const words = normNm(typed).split(' ').filter(w => w.length >= 2);
+  if (!words.length) return [];
+  return (config.baristas || []).filter(name => {
+    const sw = normNm(name).split(' ');
+    return words.every(w => sw.some(x => x.startsWith(w) || (w.length >= 4 && oneTypo(w, x))));
+  });
+}
+function refreshNameHint(r) {
+  const typed = r.other.value.trim();
+  const list = r.sel.value === '__other' && typed && r.otherNew !== normNm(typed) ? similarStaff(typed) : [];
+  r.hint.replaceChildren();
+  r.hint.hidden = !list.length;
+  if (!list.length) return list;
+  r.hint.appendChild(el('div', 'note', list.length === 1 ? 'Такой сотрудник уже есть — это он?' : 'Похожие сотрудники уже есть — выберите:'));
+  const chips = el('div', 'chips');
+  list.slice(0, 6).forEach(n => {
+    const b = el('button', 'chip', n);
+    b.type = 'button';
+    b.addEventListener('click', () => pickExisting(r, n));
+    chips.appendChild(b);
+  });
+  const no = el('button', 'chip light', 'Нет, это новый сотрудник');
+  no.type = 'button';
+  no.addEventListener('click', () => { r.otherNew = normNm(r.other.value); refreshNameHint(r); haptic('select'); });
+  chips.appendChild(no);
+  r.hint.appendChild(chips);
+  return list;
+}
+function pickExisting(r, n) {
+  setSelectValue(r.sel, r.other, n);
+  r.otherNew = '';
+  updateBaristaRows();
+  refreshNameHint(r);
+  haptic('select');
+  recalc(); saveDraftSoon();
+}
+// Вписали имя и ушли из поля: точное совпадение — выбираем сами; один похожий — спрашиваем
+async function checkTypedName(r) {
+  const typed = r.other.value.trim();
+  if (r.sel.value !== '__other' || !typed || r.otherNew === normNm(typed)) return;
+  const list = similarStaff(typed);
+  const exact = list.find(n => normNm(n) === normNm(typed));
+  if (exact) return pickExisting(r, exact);
+  if (list.length !== 1) return;
+  if (await confirm_(`Такой сотрудник уже есть: ${list[0]}. Выбрать его?`)) pickExisting(r, list[0]);
+  else { r.otherNew = normNm(typed); refreshNameHint(r); }
+}
+
+// Аванс: кто взял (из списка бариста) + сумма. Идёт в расходы кассы и сразу в «Выплаты».
+function addAdvance(name = '', sum = '') {
+  const row = document.createElement('div'); row.className = 'exp adv';
+  const n = document.createElement('select'); n.className = 'exp-name';
+  n.setAttribute('aria-label', 'Кто взял аванс');
+  n.add(new Option('Кто взял аванс…', ''));
+  const names = (config.baristas || []).slice();
+  if (name && !names.includes(name)) names.unshift(name);
+  names.forEach(x => n.add(new Option(x, x)));
+  n.value = name;
+  const s = document.createElement('input'); s.className = 'exp-sum'; s.inputMode = 'decimal'; s.placeholder = '₽'; s.value = sum;
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×';
+  x.setAttribute('aria-label', 'Удалить аванс');
+  n.addEventListener('change', saveDraftSoon);
+  x.addEventListener('click', () => { row.remove(); recalc(); saveDraftSoon(); });
+  row.append(n, s, x);
+  $('advances').appendChild(row);
+  return n;
+}
+const collectAdvances = () => [...document.querySelectorAll('#advances .adv')].map(r => ({
+  name: r.querySelector('.exp-name').value, sum: num(r.querySelector('.exp-sum').value),
+})).filter(a => a.name || a.sum != null);
 
 function addExpense(name = '', sum = '') {
   const row = document.createElement('div'); row.className = 'exp';
@@ -924,7 +1072,7 @@ function collect() {
   const v = k => fields[k].value.trim();
   const barista = v('barista') === '__other' ? v('baristaOther') : v('barista');
   const barista2 = v('barista2') === '__other' ? v('baristaOther2') : v('barista2');
-  const expenses = [...document.querySelectorAll('.exp')].map(r => ({
+  const expenses = [...document.querySelectorAll('#expenses .exp')].map(r => ({
     name: r.querySelector('.exp-name').value.trim(),
     sum: num(r.querySelector('.exp-sum').value),
   })).filter(e => e.name || e.sum != null);
@@ -944,13 +1092,13 @@ function collect() {
     cash: num(v('cash')), card: num(v('card')), incass: num(v('incass')),
     refundCash: num(v('refundCash')), refundCard: num(v('refundCard')),
     cashStart: num(v('cashStart')), cashEnd: num(v('cashEnd')),
-    expenses,
+    expenses, advances: collectAdvances(),
     stock: stockEls.map(s => ({ group: s.group, name: s.name, unit: s.unit, value: num(s.el.value) })),
     order,
   };
   const z = x => (x == null || isNaN(x)) ? 0 : x;
   r.revenue = z(r.cash) + z(r.card);
-  r.expensesTotal = expenses.reduce((a, e) => a + z(e.sum), 0);
+  r.expensesTotal = expenses.concat(r.advances).reduce((a, e) => a + z(e.sum), 0);
   r.cashExpected = z(r.cashStart) + z(r.cash) - r.expensesTotal - z(r.incass) - z(r.refundCash);
   r.diff = (r.cashEnd == null || isNaN(r.cashEnd)) ? null : Math.round((r.cashEnd - r.cashExpected) * 100) / 100;
   return r;
@@ -978,16 +1126,14 @@ function recalc() {
 /* ---------- черновик ---------- */
 
 let draftTimer;
-function saveDraftSoon() {
-  clearTimeout(draftTimer);
-  setSyncStatus('Сохраняем черновик на этом устройстве…');
-  draftTimer = setTimeout(saveDraft, 400);
-}
+function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 400); }
 function saveDraft() {
-  if (editing) return false;   // исправление не смешиваем с черновиком нового отчёта
+  if (editing) return;   // исправление не смешиваем с черновиком нового отчёта
   const d = {
     savedOn: todayISO(), id: reportId, fields: {}, stock: {},
-    expenses: [...document.querySelectorAll('.exp')].map(r => ({
+    expenses: [...document.querySelectorAll('#expenses .exp')].map(r => ({
+      name: r.querySelector('.exp-name').value, sum: r.querySelector('.exp-sum').value })),
+    advances: [...document.querySelectorAll('#advances .adv')].map(r => ({
       name: r.querySelector('.exp-name').value, sum: r.querySelector('.exp-sum').value })),
     chips: [...document.querySelectorAll('#chips .chip[aria-pressed="true"]')].map(c => c.dataset.item),
     qty: qtyState.chips,
@@ -995,10 +1141,7 @@ function saveDraft() {
   };
   for (const k in fields) d.fields[k] = fields[k].value;
   stockEls.forEach(s => { d.stock[s.name] = s.el.value; });
-  let saved = false;
-  storage(ls => { ls.setItem(DRAFT_KEY, JSON.stringify(d)); saved = true; });
-  setSyncStatus(saved ? 'Черновик сохранён на этом устройстве.' : 'Не удалось сохранить черновик локально. Не закрывайте форму.', saved ? 'ok' : 'warn');
-  return saved;
+  storage(ls => ls.setItem(DRAFT_KEY, JSON.stringify(d)));
 }
 function restoreDraft() {
   const raw = storage(ls => ls.getItem(DRAFT_KEY));
@@ -1012,13 +1155,13 @@ function restoreDraft() {
   }
   stockEls.forEach(s => { const v = d.stock ? byName(d.stock, s.name) : null; if (v != null) s.el.value = v; });
   (d.expenses || []).forEach(e => addExpense(e.name, e.sum));
+  (d.advances || []).forEach(a => addAdvance(a.name, a.sum));
   draftChips = new Set(d.chips || []);
   document.querySelectorAll('#chips .chip').forEach(c => c.setAttribute('aria-pressed', draftChips.has(c.dataset.item) ? 'true' : 'false'));
   qtyState.chips = d.qty && typeof d.qty === 'object' ? d.qty : {};
   renderQtyRows('chips');
   pairMode = typeof d.pairMode === 'boolean' ? d.pairMode : !!fields.barista2.value;
   updateBaristaRows();
-  setSyncStatus('Восстановлен черновик с этого устройства.');
   return true;
 }
 
@@ -1114,6 +1257,7 @@ function showScreen(name) {
   $('billScreen').hidden = name !== 'bills';
   $('myPayScreen').hidden = name !== 'mypay';
   $('repairScreen').hidden = name !== 'repair';
+  $('staffScreen').hidden = name !== 'staff';
   updateMainButton();
   // В списке закупки товары перетаскивают пальцем — отключаем «смахнуть вниз, чтобы закрыть»
   try {
@@ -1290,16 +1434,7 @@ async function init() {
     if (shownRole) return showBanner('Нет связи с таблицей — списки могут быть не самые свежие.');
     return gate('error');
   }
-  if (data.ok) {
-    const notices = [];
-    if (Number(data.contract) !== API_CONTRACT_VERSION) {
-      notices.push('Версия приложения и сервера не согласована. Обновите страницу или сообщите владельцу.');
-    }
-    if (data.schemaIssues && data.schemaIssues.length) {
-      notices.push('Нужно проверить структуру Google Таблицы: ' + data.schemaIssues.join('; ') + '. Сообщите владельцу.');
-    }
-    showBanner(notices.join(' '));
-  }
+  if (data.ok) showBanner('');
   if (!data.ok || data.access !== 'разрешён') {
     if (data.ok) storage(ls => ls.removeItem(INIT_KEY));   // доступ закрыли — забываем экран
     shownRole = null;
@@ -1314,12 +1449,12 @@ async function init() {
 /* ---------- вкладки: бариста — Отчёт/Заявка, владелец — ещё Закупка и Выручка ---------- */
 
 const TAB_SCREENS = { report: 'form', order: 'order', bills: 'bills', mypay: 'mypay', repair: 'repair', buy: 'buyer',
-  rev: 'revenue', pay: 'salary' };
+  rev: 'revenue', pay: 'salary', staff: 'staff' };
 
 // Бариста: Отчёт, Заявка, Счета, Моя з/п, Улучшения. Владелец: Отчёт, Заявка, Счета, Закупка, Выручка, Зарплата, Улучшения.
 // Закупщик: Закупка, Заявка, Улучшения (счетов не видит). Вкладка «Улучшения» в коде называется repair.
 function setupTabs(role) {
-  const show = role === 'owner' ? ['report', 'order', 'bills', 'buy', 'rev', 'pay', 'repair']
+  const show = role === 'owner' ? ['report', 'order', 'bills', 'buy', 'rev', 'pay', 'staff', 'repair']
     : role === 'buyer' ? ['buy', 'order', 'repair'] : ['report', 'order', 'bills', 'mypay', 'repair'];
   const bar = $('tabs');
   bar.querySelectorAll('.seg-btn').forEach(b => {
@@ -1353,6 +1488,7 @@ function setTab(tab) {
   if (tab === 'bills') loadBills();
   if (tab === 'mypay') loadMyPay();
   if (tab === 'repair') loadRepairs();
+  if (tab === 'staff') loadStaff();
   if (tab === 'buy') refreshPurchase();
   if (tab === 'rev' && !revLoaded) pickPreset('week');
   if (tab === 'pay' && !payLoaded) pickPayPreset('week');
@@ -1621,7 +1757,6 @@ async function submitOrder() {
   if (!items.length) return alert_('Отметьте кнопки или впишите, что нужно.');
   if (!inTg || !apiReady) return alert_('Откройте форму через бота в Телеграме.');
   setBusy(true);
-  setSyncStatus('Отправляем заявку в список закупки…', '', 'orderSyncStatus');
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -1635,16 +1770,9 @@ async function submitOrder() {
     renderQtyRows('orderChips');
     $('orderNow').value = '';
     setOrderedToday(data.orderedToday);
-    setSyncStatus(data.deliveryError
-      ? 'Заявка добавлена в список; сообщение закупщику не отправлено: ' + data.deliveryError
-      : (data.sent ? 'Заявка добавлена и отправлена закупщику.' : 'Заявка добавлена в список закупки.'),
-      data.deliveryError ? 'warn' : 'ok', 'orderSyncStatus');
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    await alert_(data.deliveryError
-      ? 'Заявка добавлена в список закупки, но сообщение закупщику не ушло.\nПричина: ' + data.deliveryError
-      : (data.sent ? 'Заявка отправлена закупщику ✅' : 'Заявка добавлена в список закупки ✅'));
+    await alert_(data.sent ? 'Заявка отправлена закупщику ✅' : 'Заявка добавлена в список закупки ✅');
   } catch (e) {
-    setSyncStatus('Не удалось подтвердить результат. Проверьте список закупки перед повтором.', 'warn', 'orderSyncStatus');
     await alert_('Не получилось отправить заявку: ' + e.message + '\nПроверьте интернет и попробуйте ещё раз.');
   } finally {
     setBusy(false);
@@ -2364,6 +2492,42 @@ function kv(label, value, sub, sub2) {
   return row;
 }
 
+// «Расходы из кассы» — нажал, и под строкой список: по дням, на что и сколько
+let expOpen = false;
+function expRow(d, money) {
+  const wrap = el('div');
+  const days = (d.shifts || []).filter(s => (s.exps && s.exps.length) || s.exp)
+    .slice().sort((a, b) => (a.iso < b.iso ? -1 : 1));
+  if (!d.exp || !days.length) { wrap.appendChild(kv('Расходы из кассы', money(d.exp))); return wrap; }
+  const row = kv(`Расходы из кассы ${expOpen ? '▴' : '▾'}`, money(d.exp), expOpen ? 'скрыть' : 'нажмите — список');
+  row.classList.add('tap');
+  const list = el('div', 'exp-list');
+  list.hidden = !expOpen;
+  days.forEach(s => {
+    const day = el('div', 'exp-day');
+    const h = el('div', 'exp-h');
+    h.append(el('span', null, `${weekday(s.iso)} ${dmyFull(s.iso).slice(0, 5)}`), el('span', null, money(s.exp)));
+    day.appendChild(h);
+    (s.exps || []).forEach(x => {
+      const i = el('div', 'exp-i');
+      i.append(el('span', null, x.name || 'без названия'), el('span', null, money(x.sum)));
+      day.appendChild(i);
+    });
+    if (!s.exps) day.appendChild(el('div', 'exp-i', 'подробности появятся после обновления'));
+    list.appendChild(day);
+  });
+  row.addEventListener('click', () => {
+    expOpen = !expOpen;
+    list.hidden = !expOpen;
+    row.firstChild.firstChild.textContent = `Расходы из кассы ${expOpen ? '▴' : '▾'}`;
+    const small = row.firstChild.querySelector('small');
+    if (small) small.textContent = expOpen ? 'скрыть' : 'нажмите — список';
+    haptic('select');
+  });
+  wrap.append(row, list);
+  return wrap;
+}
+
 function renderRevenue(d) {
   const out = [];
   const money = n => fmt(n) + ' ₽';
@@ -2387,7 +2551,7 @@ function renderRevenue(d) {
   // Деньги
   const money2 = el('div', 'card');
   money2.append(kv('Наличные', money(d.cash)), kv('Безнал', money(d.card)),
-    kv('Расходы из кассы', money(d.exp)), kv('Зарплата', money(d.salary)));
+    expRow(d, money), kv('Зарплата', money(d.salary)));
   out.push(money2);
 
   // Касса не сходилась — с именами
@@ -2589,11 +2753,11 @@ async function loadPay(from, to) {
 }
 
 // «Выплачено» или «Отменить выплату»
-async function payAction(action, person, unit, label) {
+async function payAction(action, person, unit, label, adv) {
   if (payBusy || !payCur) return;
   const msg = action === 'payout'
-    ? `Отметить, что ${person.name} выплачено ${fmt(unit.due)} ₽ (${label})?`
-    : `Отменить отметку о выплате: ${person.name}, ${label}?`;
+    ? (adv ? `Выдать ${person.name} аванс ${fmt(adv)} ₽ (${label})?` : `Отметить, что ${person.name} выплачено ${fmt(unit.due)} ₽ (${label})?`)
+    : `Отменить последнюю отметку о выплате: ${person.name}, ${label}?`;
   if (!(await confirm_(msg))) return;
   if (!inTg || !apiReady) return alert_('Откройте приложение через бота в Телеграме.');
   payBusy = true;
@@ -2603,7 +2767,7 @@ async function payAction(action, person, unit, label) {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ initData, action, name: person.name, key: unit.key, from, to }),
+      body: JSON.stringify({ initData, action, name: person.name, key: unit.key, from, to, sum: adv || undefined }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
@@ -2664,12 +2828,20 @@ function renderPay(d) {
       const parts = [`ставки ${fmt(u.base)}`];
       if (u.gis) parts.push(`2ГИС ${fmt(u.gis)}`);
       if (u.senior) parts.push(`стаж ${fmt(u.senior)}`);
-      info.appendChild(el('small', null, parts.join(' + ') + (isWeek ? ` · ${u.shifts.length} ${pluralRu(u.shifts.length, 'смена', 'смены', 'смен')}` : '')));
+      info.appendChild(el('small', null, u.shifts.length
+        ? parts.join(' + ') + (isWeek ? ` · ${u.shifts.length} ${pluralRu(u.shifts.length, 'смена', 'смены', 'смен')}` : '')
+        : 'смен пока нет — выдан аванс'));
+      // Когда выдавали: аванс 5 000 ₽ — 02.11.2026. Был аванс — следующая выплата это «остаток», а не «доплата»
+      const hadAdvance = (u.log || []).some(x => /^аванс/.test(x.label));
+      if (hadAdvance) (u.log || []).forEach(x => {
+        const kind = /^аванс/.test(x.label) ? 'аванс' : /остаток/.test(x.label) ? 'остаток' : 'выдано';
+        info.appendChild(el('small', null, `${kind} ${fmt(x.sum)} ₽ — ${x.date}`));
+      });
 
       const act = el('div', 'pay-act');
       if (u.due > 0) {
-        if (u.paid > 0) act.appendChild(el('div', 'pay-extra', `доплата +${fmt(u.due)}`));
-        const b = el('button', 'pay-btn', `${u.paid > 0 ? 'Доплатить' : 'Выплатить'} ${fmt(u.due)} ₽`);
+        if (u.paid > 0 && !hadAdvance) act.appendChild(el('div', 'pay-extra', `доплата +${fmt(u.due)}`));
+        const b = el('button', 'pay-btn', `${u.paid > 0 ? (hadAdvance ? 'Выплатить остаток' : 'Доплатить') : 'Выплатить'} ${fmt(u.due)} ₽`);
         b.type = 'button';
         b.addEventListener('click', e => { e.stopPropagation(); payAction('payout', p, u, label); });
         act.appendChild(b);
@@ -2683,6 +2855,24 @@ function renderPay(d) {
         act.appendChild(undo);
       }
       line.append(info, act);
+      box.appendChild(line);
+
+      // Аванс — часть суммы: вписать сколько и нажать «Выдать аванс»
+      if (u.due > 0) {
+        const adv = el('div', 'adv-row');
+        const input = el('input');
+        input.inputMode = 'decimal'; input.placeholder = 'сумма'; input.setAttribute('aria-label', 'Сумма аванса');
+        const ab = el('button', 'pay-btn light', 'Выдать аванс');
+        ab.type = 'button';
+        ab.addEventListener('click', () => {
+          const sm = num(input.value);
+          if (!(sm > 0)) return alert_('Напишите сумму аванса.');
+          if (sm > u.due) return alert_(`Это больше, чем осталось выплатить (${fmt(u.due)} ₽).`);
+          payAction('payout', p, u, label, sm);
+        });
+        adv.append(input, ab);
+        box.appendChild(adv);
+      }
 
       // Нажал на строку — смены по дням
       const det = el('div', 'pay-shifts');
@@ -2696,7 +2886,7 @@ function renderPay(d) {
         det.appendChild(row);
       });
       line.addEventListener('click', () => { det.hidden = !det.hidden; });
-      box.append(line, det);
+      box.appendChild(det);
       card.appendChild(box);
     });
     out.push(card);
@@ -2760,6 +2950,8 @@ function startEdit(ed) {
 
   $('expenses').textContent = '';
   (r.expenses || []).forEach(e => addExpense(e.name, e.sum == null ? '' : e.sum));
+  $('advances').textContent = '';
+  (r.advances || []).forEach(a => addAdvance(a.name, a.sum == null ? '' : a.sum));
 
   const stock = {};
   (r.stock || []).forEach(s => { stock[s.name] = s.value; });
@@ -2869,7 +3061,7 @@ function applyMyName(name) {
 
 function applyLast(last) {
   if (!last) return;
-  $('lastInfo').textContent = `Прошлый отчёт: ${ddmm(last.date)}, ${last.barista || ''}`;
+  $('lastInfo').textContent = `Прошлый отчёт: ${ddmm(last.date)}, ${last.sender || last.barista || ''}`;
   if (last.cashEnd != null && last.cashEnd !== '') {
     $('cashStartHint').textContent = `по прошлому отчёту: ${fmt(Number(last.cashEnd))} ₽`;
     if (fields.cashStart.value === '') { fields.cashStart.value = last.cashEnd; recalc(); }
@@ -2927,9 +3119,7 @@ async function submit() {
   if (!inTg) return alert_('Откройте форму через бота в Телеграме — иначе отчёт не отправится.');
   if (!apiReady) return alert_('Форма ещё не подключена к таблице (не указан API_URL).');
 
-  const draftSaved = !editing && saveDraft();
   setBusy(true);
-  setSyncStatus(editing ? 'Отправляем исправление…' : 'Отправляем отчёт в таблицу…');
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -2939,38 +3129,20 @@ async function submit() {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
     if (data.unchanged) return alert_('Вы ничего не изменили — исправлять нечего.');
-    if (data.duplicate && !editing) {
-      clearDraft();
-      reportId = newId();
-      setSyncStatus('Отчёт уже есть в таблице; повторную запись не создавал. Проверьте общий чат.', 'warn');
-      await alert_('Этот отчёт уже сохранён в таблице, повторную запись не создавал. Проверьте общий чат: если сообщения там нет, сообщите владельцу.');
-      if (tg) tg.close();
-      return;
-    }
     if (!editing) {
       clearDraft();
       storage(ls => ls.setItem(BARISTA_KEY, fields.barista.value === '__other' ? '' : fields.barista.value));
       reportId = newId();
     }
-    setSyncStatus(data.sent === false
-      ? 'Отчёт сохранён в таблице, но Telegram подтвердил не все сообщения или фото.'
-      : (editing ? 'Исправление сохранено и отправлено.' : 'Отчёт сохранён и отправлен.'), data.sent === false ? 'warn' : 'ok');
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     const msg = data.sent === false
-      ? 'Отчёт сохранён в таблицу, но доставка сообщений или фото не подтверждена.' + (data.deliveryError ? '\nПричина: ' + data.deliveryError : '') + '\nСообщите владельцу; повторно отправлять отчёт не нужно.'
+      ? 'Сохранено в таблицу, но сообщение в чат не ушло. Сообщите владельцу.'
       : editing ? 'Исправление сохранено ✅' : 'Отчёт отправлен ✅ Спасибо за смену!';
     await alert_(msg);
     if (tg) tg.close();
   } catch (e) {
     if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    setSyncStatus('Не удалось подтвердить результат. ' + (editing
-      ? 'Не закрывайте форму; проверьте отчёт перед повторной отправкой.'
-      : (draftSaved ? 'Черновик сохранён на этом устройстве; повторная отправка с тем же ID защитит от дубля.'
-        : 'Не закрывайте форму; локальное сохранение не подтвердилось.')), 'warn');
-    await alert_('Не удалось подтвердить отправку: ' + e.message + '\n\n' + (editing
-      ? 'Исправление могло сохраниться. Проверьте отчёт перед повторной отправкой.'
-      : (draftSaved ? 'Черновик сохранён. Проверьте вкладку «Отчёты» перед повтором; повторная отправка не создаст дубль.'
-        : 'Локальный черновик не подтверждён. Не закрывайте форму; проверьте вкладку «Отчёты» перед повтором.')));
+    await alert_('Не получилось отправить: ' + e.message + '\n\nПроверьте интернет и нажмите ещё раз — введённое не потеряется.');
   } finally {
     setBusy(false);
   }
@@ -3170,14 +3342,11 @@ async function billPost(body, okText) {
   setBusy(true);
   try {
     billData = await api(body);
-    const deliveryError = billData.deliveryError;
-    delete billData.deliveryError;
     tabCachePut('bills', billData);
     closeItem();
     renderBills();
     haptic('success');
-    if (deliveryError) await alert_('Изменение сохранено в таблице, но сообщение или фото не доставлено в Telegram. Не отправляйте заново; сообщите владельцу.\nПричина: ' + deliveryError);
-    else if (okText) await alert_(okText);
+    if (okText) await alert_(okText);
     return true;
   } catch (e) {
     await alert_('Не получилось: ' + e.message);
@@ -3315,7 +3484,12 @@ function openIdea(id) {
     const mine = !!myName && c.who === myName;
     const msg = el('div', 'msg' + (mine ? ' mine' : '') + (c.pending ? ' pending' : '') + (c.failed ? ' failed' : ''));
     if (!mine && c.who) msg.appendChild(el('div', 'msg-who', c.who));
-    msg.appendChild(el('div', 'msg-text', c.text));
+    if (c.text) msg.appendChild(el('div', 'msg-text', c.text));
+    if (c.localPhotos && c.localPhotos.length) {
+      const pw = el('div', 'msg-photos');
+      c.localPhotos.forEach(src => { const im = el('img'); im.src = src; im.alt = 'Фото'; pw.appendChild(im); });
+      msg.appendChild(pw);
+    } else if (c.photos) msg.appendChild(ideaPhotoLoader(id, c));
     msg.appendChild(el('div', 'msg-meta', c.failed ? 'не отправлено' : c.pending ? 'отправляется…'
       : (c.date || '').slice(0, 16) + (c.edited ? ' · изменено' : '')));
     // Зажать сообщение: своё — «Изменить» / «Удалить», владелец — «Удалить» у любого
@@ -3352,7 +3526,14 @@ function openIdea(id) {
   send.setAttribute('aria-label', 'Отправить');
   send.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>';
   send.addEventListener('click', () => editing ? saveIdeaEdit(id, editing, ta) : sendIdeaComment(id, ta));
-  bar.append(ta, send);
+  const attach = el('button', 'chat-attach');
+  attach.type = 'button';
+  attach.setAttribute('aria-label', 'Приложить фото');
+  attach.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6z"/></svg>';
+  attach.addEventListener('click', () => $('ideaPhotoInput').click());
+  if (editing) attach.hidden = true;
+  if (!editing) { const pl = ideaPhotoList(id); if (pl.length) body.appendChild(ideaPhotoStrip(id, pl)); }
+  bar.append(attach, ta, send);
   body.appendChild(bar);
 
   const btns = el('div', 'chat-btns');
@@ -3390,26 +3571,83 @@ function setIdeaComments(id, comments) {
   if (ideaOpenId === id && !$('itemSheet').hidden) openIdea(id);
 }
 
+// Фото к комментарию в чате: черновик на каждое предложение (до 3 фото), мини-плитки над строкой ввода
+const IDEA_PHOTO_MAX = 3;
+const ideaPhotoDraft = {};
+function ideaPhotoList(id) { return ideaPhotoDraft[id] || (ideaPhotoDraft[id] = []); }
+function ideaPhotoStrip(id, list) {
+  const box = el('div', 'chat-photos');
+  list.forEach((src, i) => {
+    const d = el('div', 'ph');
+    const img = el('img'); img.src = src; img.alt = `Фото ${i + 1}`;
+    const x = el('button', 'del', '×'); x.type = 'button';
+    x.setAttribute('aria-label', 'Убрать фото');
+    x.addEventListener('click', () => { list.splice(i, 1); openIdea(id); });
+    d.append(img, x);
+    box.appendChild(d);
+  });
+  return box;
+}
+$('ideaPhotoInput').addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  const id = ideaOpenId;
+  if (!id) return;
+  const list = ideaPhotoList(id);
+  for (const f of files) {
+    if (list.length >= IDEA_PHOTO_MAX) { await alert_(`Можно не больше ${IDEA_PHOTO_MAX} фото.`); break; }
+    try { list.push(await shrinkImage(f)); } catch (err) { await alert_(err.message); }
+  }
+  if (ideaOpenId === id) openIdea(id);
+});
+// Фото в сообщении грузятся по нажатию — через сервер
+function ideaPhotoLoader(id, c) {
+  const wrap = el('div', 'msg-photos');
+  const btn = el('button', 'msg-ph-btn', `📷 Фото (${c.photos})`);
+  btn.type = 'button';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = 'Загружаю фото…';
+    try {
+      for (let n = 0; n < c.photos; n++) {
+        const res = await fetch(`${API_URL}?action=ideaPhoto&id=${encodeURIComponent(id)}&cid=${encodeURIComponent(c.cid || '')}&n=${n}&initData=${encodeURIComponent(initData)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+        const img = el('img'); img.src = data.data; img.alt = `Фото ${n + 1}`;
+        img.addEventListener('click', () => openPhotoView(img.src));
+        wrap.appendChild(img);
+      }
+      btn.remove();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = `📷 Фото (${c.photos})`;
+      alert_('Не удалось загрузить фото: ' + e.message);
+    }
+  });
+  wrap.appendChild(btn);
+  return wrap;
+}
+
 async function sendIdeaComment(id, ta) {
   const text = ta.value.trim();
-  if (!text) return;
+  const photos = ideaPhotoList(id).slice();
+  if (!text && !photos.length) return;
   if (!inTg || !apiReady) return alert_('Откройте приложение через бота в Телеграме.');
   const x = ideaById(id);
   if (!x) return;
   // Сразу показываем — не ждём сервер
-  const temp = { who: myName, text, date: nowStamp(), pending: true };
+  const temp = { who: myName, text, date: nowStamp(), pending: true, localPhotos: photos };
   x.comments = (x.comments || []).concat([temp]);
   delete ideaCommentDraft[id];
+  ideaPhotoDraft[id] = [];
   haptic('light');
   openIdea(id);
   try {
-    const data = await api({ action: 'ideaComment', id, text });
+    const data = await api({ action: 'ideaComment', id, text, photos });
     setIdeaComments(id, data.comments);
     haptic('success');
   } catch (e) {
     temp.pending = false; temp.failed = true;
     if (ideaOpenId === id) openIdea(id);
     ideaCommentDraft[id] = text;
+    ideaPhotoDraft[id] = photos;
     await alert_('Комментарий не отправился: ' + e.message);
     const y = ideaById(id);
     if (y) y.comments = (y.comments || []).filter(c => c !== temp);
@@ -3439,7 +3677,7 @@ function msgMenu(id, c, n, mine) {
   };
   const buttons = (mine ? [{ id: 'edit', type: 'default', text: 'Изменить' }] : [])
     .concat([{ id: 'del', type: 'destructive', text: 'Удалить' }, { type: 'cancel' }]);
-  const preview = c.text.length > 80 ? c.text.slice(0, 80) + '…' : c.text;
+  const preview = !c.text ? 'Фото' : c.text.length > 80 ? c.text.slice(0, 80) + '…' : c.text;
   if (tg && tg.showPopup && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
     try { tg.showPopup({ message: preview, buttons }, run); return; } catch (e) {}
   }
@@ -3473,7 +3711,7 @@ async function saveIdeaEdit(id, ed, ta) {
 }
 
 async function deleteIdeaComment(id, c, n) {
-  if (!(await confirm_(`Удалить комментарий «${c.text.slice(0, 60)}»?`))) return;
+  if (!(await confirm_(c.text ? `Удалить комментарий «${c.text.slice(0, 60)}»?` : 'Удалить это сообщение с фото?'))) return;
   try {
     const data = await api({ action: 'ideaCommentDelete', id, cid: c.cid || '', n, text: c.text });
     setIdeaComments(id, data.comments);
@@ -3490,8 +3728,6 @@ async function ideaPost(body, then) {
   setBusy(true);
   try {
     repairData = await api(body);
-    const deliveryError = repairData.deliveryError;
-    delete repairData.deliveryError;
     tabCachePut('repair', repairData);
     renderRepairs();
     haptic('success');
@@ -3591,8 +3827,7 @@ async function repairPost(body, okText) {
     closeItem();
     renderRepairs();
     haptic('success');
-    if (deliveryError) await alert_('Запись сохранена в таблице, но сообщение или фото не доставлено в Telegram. Не отправляйте действие заново; сообщите владельцу.\nПричина: ' + deliveryError);
-    else if (okText) await alert_(okText);
+    if (okText) await alert_(okText);
     return true;
   } catch (e) {
     await alert_('Не получилось: ' + e.message);
@@ -3720,6 +3955,84 @@ function closePhotoView() {
   }, { passive: false });
 })();
 
+/* ---------- сотрудники (только владелец): список и смена имени ---------- */
+
+let staffData = null;   // { staff: [{ name, since, daily }] }
+
+async function loadStaff() {
+  if (!inTg || !apiReady) return;
+  if (!staffData) $('staffBody').replaceChildren(el('div', 'loading-note', 'Загружаю…'));
+  try {
+    const res = await fetch(`${API_URL}?action=staffList&initData=${encodeURIComponent(initData)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Ошибка сервера');
+    if (!Array.isArray(data.staff)) throw new Error('на сервере старый Code.gs — обновите его в Apps Script.');
+    staffData = data;
+    renderStaff();
+  } catch (e) {
+    if (!staffData) $('staffBody').replaceChildren(el('div', 'loading-note', 'Не удалось загрузить: ' + e.message));
+  }
+}
+
+function renderStaff() {
+  const list = staffData.staff;
+  const card = el('div', 'card');
+  if (!list.length) card.appendChild(el('div', 'note', 'Список пуст. Сотрудники берутся с листа «Бариста».'));
+  list.forEach(s => {
+    const row = el('div', 'staff-row');
+    const left = el('div');
+    left.appendChild(el('b', null, s.name));
+    const bits = [];
+    if (s.since) bits.push(`работает с ${dmyFull(s.since)}`);
+    if (s.daily) bits.push('оплата ежедневно');
+    if (bits.length) left.appendChild(el('small', null, bits.join(' · ')));
+    const edit = el('button', 'staff-edit', '✎');
+    edit.type = 'button';
+    edit.setAttribute('aria-label', 'Изменить имя ' + s.name);
+    edit.addEventListener('click', () => renameStaffUi(s.name));
+    row.append(left, edit);
+    card.appendChild(row);
+  });
+  $('staffBody').replaceChildren(el('h2', 'sec', `Всего: ${list.length}`), card,
+    el('p', 'note', 'Имя меняется в отчётах, выплатах, счетах, ремонте и предложениях — только там, где оно написано точно так же.'));
+}
+
+function renameStaffUi(oldName) {
+  const body = $('itemSheetBody');
+  body.textContent = '';
+  body.append(el('h2', null, 'Изменить имя'), el('div', 'grp', oldName));
+  const inp = el('input', 'full');
+  inp.placeholder = 'Фамилия и имя'; inp.value = oldName; inp.maxLength = 100;
+  const save = el('button', 'btn', 'Сохранить');
+  save.type = 'button';
+  const cancel = el('button', 'btn btn-light', 'Отмена');
+  cancel.type = 'button';
+  cancel.addEventListener('click', closeItem);
+  save.addEventListener('click', async () => {
+    const nn = inp.value.replace(/\s+/g, ' ').trim();
+    if (nn.length < 2) return alert_('Напишите новое имя.');
+    if (nn === oldName) return closeItem();
+    if (!(await confirm_(`Поменять «${oldName}» на «${nn}» везде: в отчётах, выплатах, счетах и предложениях?`))) return;
+    btnPending(save, true, 'Меняю…');
+    try {
+      staffData = await api({ action: 'staffRename', oldName, newName: nn });
+      // Списки в форме и кэш зарплаты/выручки устарели — сбрасываем
+      storage(ls => { ['shift-report-pay-v1', 'shift-report-rev-v1', 'shift-report-mypay-v1'].forEach(k => ls.removeItem(k)); });
+      payLoaded = false; revLoaded = false;
+      closeItem();
+      renderStaff();
+      haptic('success');
+      alert_('Имя изменено. Чтобы в форме отчёта появился новый список, закройте и откройте приложение.');
+    } catch (e) {
+      btnPending(save, false);
+      alert_('Не получилось: ' + e.message);
+    }
+  });
+  body.append(inp, save, cancel);
+  $('itemSheet').hidden = false;
+  setTimeout(() => inp.focus(), 50);
+}
+
 /* ---------- моя з/п: своя невыплаченная зарплата ---------- */
 
 let myPayData = null;   // { name, today, found, daily, units: [{ key, from, to, total, paid, due, shifts }], due }
@@ -3777,6 +4090,8 @@ function renderMyPay() {
       // Неделя ещё не закончилась — сумма будет расти
       if (u.key.startsWith('неделя:') && d.today <= u.to) left.appendChild(el('div', 'my-wait', 'неделя ещё идёт — сумма может вырасти'));
       if (u.paid > 0) left.appendChild(el('div', 'my-part', `уже выдано ${fmt(u.paid)} ₽ из ${fmt(u.total)} ₽`));
+      (u.log || []).forEach(x => left.appendChild(el('div', 'my-part',
+        `${/^аванс/.test(x.label) ? 'аванс' : 'выдано'} ${fmt(x.sum)} ₽ — ${x.date}`)));
       line.append(left, el('b', 'my-sum', `${fmt(u.due)} ₽`));
       box.appendChild(line);
       if (u.shifts && u.shifts.length) {
